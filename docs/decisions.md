@@ -4,6 +4,31 @@ Running log of decisions made during design. Newest at top.
 
 ---
 
+## 2026-04-17 (continued)
+
+### D-017: Filename token pool, not realistic sentences
+Filenames generated from templates with placeholder tokens (`{n5}`, `{codeword}`, `{date}`, `{year}`, `{q}`, `{month}`, `{rev}`) filled from a content-neutral token pool. Enough to look realistic, no need to generate "real" document titles.
+
+### D-016: Magic-byte headers as hex strings in filetypes.json
+`config/filetypes.json` holds header bytes as uppercase hex strings. Some formats (ISO, TAR, WAV, AVI) need markers at non-zero offsets — expressed as `marker` + `markerOffset` fields.
+
+### D-015: Duplicate and drift planned in manifest, not generated during execution
+Both exact duplicates (8%) and version drift clusters (3%) are decided during the manifest planning pass. Execution workers are oblivious — they just see N manifest entries and create N files. Keeps workers dumb and parallel-safe.
+
+### D-014: Orphan pass happens AFTER file creation
+Terminated users exist in AD during file gen so their SIDs can be applied as owners and ACEs. Only after all files are written and ACLs applied do we delete the terminated users. Their SIDs become unresolvable on disk — the orphan demo.
+
+### D-013: Timestamps and owners are separate passes from file creation
+File creation sets times to "now". Phase 2e overwrites with the planned btime/mtime/atime. Phase 2f applies the planned owner. Separating these phases keeps each pass's hot path minimal and parallelizable.
+
+### D-012: NTFS sparse flag via P/Invoke, not fsutil
+`fsutil sparse setflag` shells out per call — at 10M files that's 10M process spawns. Unworkable. Use P/Invoke to `DeviceIoControl(FSCTL_SET_SPARSE)` instead. PowerShell `Add-Type` wraps the Win32 call.
+
+### D-011: Manifest-first architecture
+File generation is split into a single-threaded planning pass (emits `manifests/file-manifest.jsonl`) and a parallel execution pass (dumb workers read manifest, write files). Deterministic, debuggable, replayable, trivially parallel.
+
+---
+
 ## 2026-04-17
 
 ### D-010: Repo and collaboration setup

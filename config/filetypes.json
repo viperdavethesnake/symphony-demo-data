@@ -1,0 +1,343 @@
+{
+  "$comment": "File type catalog. Extensions grouped by category, each with magic-byte header, size distribution, and filename patterns. Headers are hex strings. Sizes are lognormal with p50/p95/min/max in bytes.",
+
+  "office": {
+    "docx": {
+      "category": "office",
+      "header": "504B03041400060008000000210000000000000000000000000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 350000, "p95Bytes": 2500000, "minBytes": 20480, "maxBytes": 15000000 },
+      "filenamePatterns": ["Report_{n5}.docx", "Memo_{year}_{n3}.docx", "{codeword}_Draft_{n2}.docx", "Meeting_Notes_{date}.docx", "Policy_{codeword}_{rev}.docx", "Proposal_{codeword}.docx"]
+    },
+    "xlsx": {
+      "category": "office",
+      "header": "504B03041400060008000000210000000000000000000000000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 180000, "p95Bytes": 4000000, "minBytes": 15360, "maxBytes": 52428800 },
+      "filenamePatterns": ["Budget_{year}_{q}.xlsx", "Forecast_{codeword}.xlsx", "Inventory_{date}.xlsx", "Timesheet_{year}_{month}.xlsx", "Pipeline_{q}_{year}.xlsx", "Expenses_{year}_{month}.xlsx"]
+    },
+    "pptx": {
+      "category": "office",
+      "header": "504B03041400060008000000210000000000000000000000000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 4500000, "p95Bytes": 45000000, "minBytes": 307200, "maxBytes": 157286400 },
+      "filenamePatterns": ["QBR_{q}_{year}.pptx", "AllHands_{date}.pptx", "Pitch_{codeword}.pptx", "Training_{codeword}.pptx", "Board_{month}_{year}.pptx", "Review_{codeword}_{rev}.pptx"]
+    },
+    "doc": {
+      "category": "office",
+      "header": "D0CF11E0A1B11AE1",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 80000, "p95Bytes": 500000, "minBytes": 19456, "maxBytes": 8000000 },
+      "filenamePatterns": ["Letter_{codeword}.doc", "Notes_{date}.doc", "Agreement_{year}_{n3}.doc"]
+    },
+    "xls": {
+      "category": "office",
+      "header": "D0CF11E0A1B11AE1",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 60000, "p95Bytes": 800000, "minBytes": 13312, "maxBytes": 20000000 },
+      "filenamePatterns": ["Ledger_{year}.xls", "Data_{codeword}_{n3}.xls", "Legacy_Report_{year}.xls"]
+    },
+    "pdf": {
+      "category": "office",
+      "header": "255044462D312E370A25E2E3CFD30A",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 450000, "p95Bytes": 8000000, "minBytes": 81920, "maxBytes": 209715200 },
+      "filenamePatterns": ["Invoice_{n5}.pdf", "Contract_{codeword}_{year}.pdf", "NDA_{codeword}.pdf", "Scan_{date}.pdf", "{codeword}_Whitepaper.pdf", "Receipt_{date}_{n3}.pdf", "StatementOfWork_{codeword}.pdf"]
+    },
+    "rtf": {
+      "category": "office",
+      "header": "7B5C727466",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 40000, "p95Bytes": 300000, "minBytes": 2048, "maxBytes": 5000000 },
+      "filenamePatterns": ["Note_{date}.rtf", "Draft_{codeword}.rtf"]
+    }
+  },
+
+  "images": {
+    "jpg": {
+      "category": "images",
+      "header": "FFD8FFE000104A46494600010100000100010000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 450000, "p95Bytes": 6000000, "minBytes": 51200, "maxBytes": 15728640 },
+      "filenamePatterns": ["IMG_{n4}.jpg", "Photo_{date}_{n3}.jpg", "Scan_{n4}.jpg", "{codeword}_{n3}.jpg"]
+    },
+    "jpeg": {
+      "category": "images",
+      "header": "FFD8FFE000104A46494600010100000100010000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 450000, "p95Bytes": 6000000, "minBytes": 51200, "maxBytes": 15728640 },
+      "filenamePatterns": ["IMG_{n4}.jpeg", "Photo_{date}_{n3}.jpeg"]
+    },
+    "png": {
+      "category": "images",
+      "header": "89504E470D0A1A0A",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 180000, "p95Bytes": 2500000, "minBytes": 8192, "maxBytes": 20971520 },
+      "filenamePatterns": ["Screenshot_{date}_{n3}.png", "Logo_{codeword}.png", "Diagram_{codeword}.png", "Chart_{codeword}_{n2}.png"]
+    },
+    "gif": {
+      "category": "images",
+      "header": "47494638396100010001000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 25000, "p95Bytes": 500000, "minBytes": 1024, "maxBytes": 8000000 },
+      "filenamePatterns": ["anim_{codeword}.gif", "icon_{n3}.gif"]
+    },
+    "bmp": {
+      "category": "images",
+      "header": "424D",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 800000, "p95Bytes": 8000000, "minBytes": 10240, "maxBytes": 52428800 },
+      "filenamePatterns": ["image_{n4}.bmp", "scan_{date}.bmp"]
+    },
+    "tiff": {
+      "category": "images",
+      "header": "49492A00",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 2500000, "p95Bytes": 25000000, "minBytes": 102400, "maxBytes": 209715200 },
+      "filenamePatterns": ["Scan_{codeword}_{n3}.tiff", "Archive_{date}.tiff"]
+    },
+    "psd": {
+      "category": "images",
+      "header": "38425053000100000000000000010001000000083842494D040400000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 45000000, "p95Bytes": 250000000, "minBytes": 5242880, "maxBytes": 1073741824 },
+      "filenamePatterns": ["Design_{codeword}_{rev}.psd", "Asset_{codeword}_{n3}.psd", "Mockup_{codeword}.psd"]
+    },
+    "ai": {
+      "category": "images",
+      "header": "255044462D312E370A25E2E3CFD30A",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 8000000, "p95Bytes": 80000000, "minBytes": 204800, "maxBytes": 524288000 },
+      "filenamePatterns": ["Logo_{codeword}_{rev}.ai", "Brand_{codeword}.ai"]
+    }
+  },
+
+  "archives": {
+    "zip": {
+      "category": "archives",
+      "header": "504B03041400000008000000210000000000000000000000000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 15000000, "p95Bytes": 800000000, "minBytes": 524288, "maxBytes": 4294967296 },
+      "filenamePatterns": ["Backup_{date}.zip", "Archive_{year}_{q}.zip", "{codeword}_Release.zip", "Export_{date}.zip"]
+    },
+    "7z": {
+      "category": "archives",
+      "header": "377ABCAF271C0004",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 35000000, "p95Bytes": 1200000000, "minBytes": 1048576, "maxBytes": 6442450944 },
+      "filenamePatterns": ["Archive_{codeword}.7z", "Backup_{date}.7z"]
+    },
+    "rar": {
+      "category": "archives",
+      "header": "526172211A0701000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 45000000, "p95Bytes": 1500000000, "minBytes": 1048576, "maxBytes": 8589934592 },
+      "filenamePatterns": ["Archive_{codeword}.rar", "Media_{date}.rar"]
+    },
+    "tar": {
+      "category": "archives",
+      "header": "",
+      "headerOffset": 0,
+      "marker": "7573746172",
+      "markerOffset": 257,
+      "sizeDistribution": { "p50Bytes": 25000000, "p95Bytes": 800000000, "minBytes": 10240, "maxBytes": 4294967296 },
+      "filenamePatterns": ["backup_{date}.tar", "data_{codeword}.tar"]
+    },
+    "gz": {
+      "category": "archives",
+      "header": "1F8B0800000000000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 5000000, "p95Bytes": 500000000, "minBytes": 1024, "maxBytes": 2147483648 },
+      "filenamePatterns": ["log_{date}.gz", "dump_{codeword}.gz"]
+    }
+  },
+
+  "media": {
+    "mp4": {
+      "category": "media",
+      "header": "0000001866747970",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 180000000, "p95Bytes": 2500000000, "minBytes": 5242880, "maxBytes": 10737418240 },
+      "filenamePatterns": ["recording_{date}.mp4", "video_{codeword}.mp4", "webinar_{codeword}_{date}.mp4", "demo_{codeword}.mp4"]
+    },
+    "mov": {
+      "category": "media",
+      "header": "0000001466747970716D201F00000008",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 250000000, "p95Bytes": 3000000000, "minBytes": 10485760, "maxBytes": 10737418240 },
+      "filenamePatterns": ["clip_{codeword}.mov", "footage_{date}.mov"]
+    },
+    "mp3": {
+      "category": "media",
+      "header": "494433030000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 4500000, "p95Bytes": 25000000, "minBytes": 524288, "maxBytes": 157286400 },
+      "filenamePatterns": ["podcast_{codeword}_{n3}.mp3", "recording_{date}.mp3", "track_{n3}.mp3"]
+    },
+    "wav": {
+      "category": "media",
+      "header": "52494646",
+      "headerOffset": 0,
+      "marker": "57415645",
+      "markerOffset": 8,
+      "sizeDistribution": { "p50Bytes": 25000000, "p95Bytes": 250000000, "minBytes": 1048576, "maxBytes": 2147483648 },
+      "filenamePatterns": ["audio_{codeword}.wav", "recording_{date}.wav"]
+    },
+    "avi": {
+      "category": "media",
+      "header": "52494646",
+      "headerOffset": 0,
+      "marker": "41564920",
+      "markerOffset": 8,
+      "sizeDistribution": { "p50Bytes": 350000000, "p95Bytes": 2500000000, "minBytes": 5242880, "maxBytes": 8589934592 },
+      "filenamePatterns": ["video_{codeword}.avi", "clip_{date}.avi"]
+    }
+  },
+
+  "installers": {
+    "iso": {
+      "category": "installers",
+      "header": "",
+      "headerOffset": 0,
+      "marker": "4344303031",
+      "markerOffset": 32769,
+      "sizeDistribution": { "p50Bytes": 2000000000, "p95Bytes": 6000000000, "minBytes": 314572800, "maxBytes": 17179869184 },
+      "filenamePatterns": ["{codeword}_installer.iso", "Win{year}_{codeword}.iso", "ubuntu-{year}.iso", "sqlserver_{year}.iso"]
+    },
+    "msi": {
+      "category": "installers",
+      "header": "D0CF11E0A1B11AE1",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 45000000, "p95Bytes": 400000000, "minBytes": 2097152, "maxBytes": 2147483648 },
+      "filenamePatterns": ["{codeword}_setup.msi", "install_{codeword}_{rev}.msi"]
+    },
+    "exe": {
+      "category": "installers",
+      "header": "4D5A90000300000004000000FFFF0000B8",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 20000000, "p95Bytes": 250000000, "minBytes": 524288, "maxBytes": 1073741824 },
+      "filenamePatterns": ["setup_{codeword}.exe", "{codeword}_installer.exe", "update_{codeword}.exe"]
+    },
+    "vhdx": {
+      "category": "installers",
+      "header": "7668647866696C65",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 5000000000, "p95Bytes": 40000000000, "minBytes": 524288000, "maxBytes": 64424509440 },
+      "filenamePatterns": ["vm_{codeword}.vhdx", "backup_{date}.vhdx"]
+    }
+  },
+
+  "cadCode": {
+    "dwg": {
+      "category": "cadCode",
+      "header": "4143313032370000000000",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 3500000, "p95Bytes": 80000000, "minBytes": 524288, "maxBytes": 524288000 },
+      "filenamePatterns": ["plan_{codeword}_{rev}.dwg", "drawing_{codeword}.dwg"]
+    },
+    "step": {
+      "category": "cadCode",
+      "header": "49534F2D31303330332D32313B",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 5000000, "p95Bytes": 60000000, "minBytes": 102400, "maxBytes": 419430400 },
+      "filenamePatterns": ["model_{codeword}.step", "part_{codeword}_{rev}.step"]
+    },
+    "py": {
+      "category": "cadCode",
+      "header": "232120707974686F6E0A",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 8000, "p95Bytes": 80000, "minBytes": 256, "maxBytes": 5000000 },
+      "filenamePatterns": ["{codeword}.py", "utils_{codeword}.py", "test_{codeword}.py"]
+    },
+    "js": {
+      "category": "cadCode",
+      "header": "2F2F20",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 12000, "p95Bytes": 150000, "minBytes": 256, "maxBytes": 5000000 },
+      "filenamePatterns": ["{codeword}.js", "app_{codeword}.js", "{codeword}.min.js"]
+    },
+    "json": {
+      "category": "cadCode",
+      "header": "7B0A",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 4000, "p95Bytes": 120000, "minBytes": 32, "maxBytes": 50000000 },
+      "filenamePatterns": ["config_{codeword}.json", "data_{codeword}.json", "package.json"]
+    },
+    "xml": {
+      "category": "cadCode",
+      "header": "3C3F786D6C2076657273696F6E3D22312E30223F3E0A",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 15000, "p95Bytes": 500000, "minBytes": 128, "maxBytes": 100000000 },
+      "filenamePatterns": ["config_{codeword}.xml", "export_{date}.xml", "schema_{codeword}.xml"]
+    }
+  },
+
+  "textLogs": {
+    "txt": {
+      "category": "textLogs",
+      "header": "",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 8000, "p95Bytes": 200000, "minBytes": 16, "maxBytes": 10485760 },
+      "filenamePatterns": ["notes_{date}.txt", "readme.txt", "{codeword}_notes.txt", "todo.txt"]
+    },
+    "log": {
+      "category": "textLogs",
+      "header": "",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 2000000, "p95Bytes": 150000000, "minBytes": 1024, "maxBytes": 5368709120 },
+      "filenamePatterns": ["{codeword}_{date}.log", "application_{date}.log", "error_{date}.log", "access_{date}.log", "debug_{date}.log"]
+    },
+    "csv": {
+      "category": "textLogs",
+      "header": "",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 45000, "p95Bytes": 5000000, "minBytes": 128, "maxBytes": 524288000 },
+      "filenamePatterns": ["export_{date}.csv", "data_{codeword}.csv", "report_{codeword}_{date}.csv", "customers_{year}.csv"]
+    },
+    "md": {
+      "category": "textLogs",
+      "header": "2320",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 4000, "p95Bytes": 60000, "minBytes": 64, "maxBytes": 2097152 },
+      "filenamePatterns": ["README.md", "{codeword}.md", "notes_{date}.md", "CHANGELOG.md"]
+    }
+  },
+
+  "junk": {
+    "tmp": {
+      "category": "junk",
+      "header": "",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 2048, "p95Bytes": 500000, "minBytes": 0, "maxBytes": 104857600 },
+      "filenamePatterns": ["~$temp_{n5}.tmp", "{codeword}.tmp", "~WRL{n4}.tmp"]
+    },
+    "bak": {
+      "category": "junk",
+      "header": "",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 5000000, "p95Bytes": 2500000000, "minBytes": 1024, "maxBytes": 21474836480 },
+      "filenamePatterns": ["{codeword}.bak", "backup_{date}.bak", "db_{date}.bak"]
+    },
+    "ds_store": {
+      "category": "junk",
+      "header": "0000000142756431",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 6148, "p95Bytes": 12296, "minBytes": 6148, "maxBytes": 20480 },
+      "filenamePatterns": [".DS_Store"]
+    },
+    "thumbs_db": {
+      "category": "junk",
+      "header": "D0CF11E0A1B11AE1",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 40960, "p95Bytes": 300000, "minBytes": 8192, "maxBytes": 2097152 },
+      "filenamePatterns": ["Thumbs.db"]
+    },
+    "lock": {
+      "category": "junk",
+      "header": "",
+      "headerOffset": 0,
+      "sizeDistribution": { "p50Bytes": 128, "p95Bytes": 1024, "minBytes": 0, "maxBytes": 65536 },
+      "filenamePatterns": [".~lock.{codeword}#", "{codeword}.lock"]
+    }
+  }
+}
