@@ -1,0 +1,25 @@
+# Generated artifacts
+manifests/
+*.log
+*.tmp
+run-output/
+
+# VM / disk artifacts (never commit)
+*.vhdx
+*.vhd
+*.vmdk
+*.snapshot
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor noise
+.vscode/
+.idea/
+*.swp
+*~
+
+# PowerShell module cache
+Modules/
