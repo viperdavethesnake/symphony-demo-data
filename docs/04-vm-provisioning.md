@@ -32,7 +32,7 @@ System disk holds Windows + PowerShell + git. Data disk is dedicated to `S:\Shar
 5. Set a static IP on the NIC (e.g. `10.10.10.10/24`)
 6. Set DNS server to `127.0.0.1` (will be self-resolved once AD is up)
 7. Disable IE Enhanced Security Configuration (for admins, for sanity)
-8. Disable Windows Defender real-time scanning on `S:\` — AV scanning 10M file creates kills throughput
+8. Fully disable Microsoft Defender — run `pwsh -File .\scripts\Disable-AcmeDefender.ps1` (elevated). AV scanning 10M file creates is catastrophic for throughput; Defender is disabled for everything via `Set-MpPreference` + Server-SKU policy registry keys. Tamper Protection must be OFF beforehand (Windows Security UI). See D-047.
 9. Disable sleep / hibernation
 10. Enable Remote Desktop if you want to RDP in
 
@@ -71,30 +71,57 @@ Resolve-DnsName acme.local
 
 ## Phase 3 — Prepare the data disk
 
-1. In the hypervisor, attach the 200 GB VHDX as the VM's second disk
-2. In Windows: Disk Management → online → initialize (GPT) → new simple volume → drive letter `S:` → **do NOT format from the GUI**, skip format
-3. Format from PowerShell with large file records and 4 KB clusters:
+In the hypervisor, attach the 200 GB VHDX (or raw-backed disk) as the VM's second disk. Everything from here is scripted — run `scripts/Initialize-AcmeDisk.ps1` and it handles online/init/format/flags/share-root.
+
+### Format parameters (authoritative — see D-044)
+
+| Parameter | Value | Why |
+|---|---|---|
+| Drive letter | `S` | Per spec |
+| File system | NTFS | Required for sparse + ACLs |
+| Partition style | GPT | 2 TB is under MBR's limit but GPT is modern default |
+| Allocation unit size | 4096 (4 KB) | Required for sparse efficiency. 64 KB would waste ~60 KB per file × 10M = ~600 GB |
+| Large FRS | Enabled | 1 KB MFT records vs 4 KB default. Holds more attributes inline, less fragmentation at 10M files |
+| Volume label | `AcmeShare` | |
+| Quick format | Yes | Full format would take hours for no benefit on a 2 TB disk |
+| Compression | Disabled | NTFS compression conflicts with sparse flag semantics |
+| Short (8.3) names | Disabled | Pure perf drag at 10M files |
+| Last access updates | Disabled | We set atime deliberately; don't let the OS bump it |
+| Indexing | Disabled | Windows Search would try to crawl 10M files |
+| Sparse flag | Set on `S:\Share` | Documentation/insurance — the generator still sets sparse per-file via P/Invoke |
+
+### Run it
 
 ```powershell
-Format-Volume -DriveLetter S -FileSystem NTFS -AllocationUnitSize 4096 -UseLargeFRS -NewFileSystemLabel 'AcmeShare' -Confirm:$false
+cd C:\Projects\symphony-demo-data
+git pull
+# Must be elevated
+pwsh -File .\scripts\Initialize-AcmeDisk.ps1
 ```
 
-4. Create the share root and set the sparse flag on it:
+If there's more than one RAW disk or you want to be explicit:
 
 ```powershell
-New-Item -Path 'S:\Share' -ItemType Directory
-fsutil sparse setflag 'S:\Share'
+pwsh -File .\scripts\Initialize-AcmeDisk.ps1 -DiskNumber 1
 ```
 
-Note: the sparse flag on a directory doesn't propagate to files — each file must be marked sparse individually during creation. Setting it on the root is documentation/insurance; the generator sets it per-file via P/Invoke.
+If a bad format needs to be redone (destructive — wipes the disk):
 
-5. Create the SMB share:
+```powershell
+pwsh -File .\scripts\Initialize-AcmeDisk.ps1 -DiskNumber 1 -Force
+```
+
+The script is idempotent when `S:` already exists — it reports state and ensures `S:\Share` + sparse flag are present, but will not wipe without `-Force`.
+
+**Virtio gotcha:** on KVM/Proxmox, a freshly-attached raw-backed disk comes up offline and sometimes read-only. The script handles this by running `Set-Disk -IsOffline $false` / `Set-Disk -IsReadOnly $false` against any offline/read-only disk before initialization.
+
+### SMB share
+
+Deferred until AD build runs — `GRP_AllStaff` is created by `Build-AcmeAD.ps1`. After AD is populated:
 
 ```powershell
 New-SmbShare -Name 'Share' -Path 'S:\Share' -FullAccess 'ACME\Domain Admins' -ChangeAccess 'ACME\GRP_AllStaff'
 ```
-
-(The `GRP_AllStaff` group is created later during the AD build. Either create the share after AD build, or create it now with just admins and update permissions later. Cleaner to defer.)
 
 ## Phase 4 — Tooling install
 
@@ -181,7 +208,7 @@ If Symphony runs from another VM on the same isolated network, those ports need 
 
 ## Gotchas
 
-- **Don't enable Defender on S:** — real-time scanning on 10M file creates is catastrophic for throughput. Add `S:\` to Defender exclusions before running file gen.
+- **Defender must be off, not just excluded.** Exclusions alone are unreliable at 10M-file scale — some paths leak through real-time scanning regardless. Phase 0 step 8 runs `Disable-AcmeDefender.ps1` which turns the service off entirely via policy keys. `Get-MpComputerStatus` should report `AntivirusEnabled: False` and `AMRunningMode: Not running`.
 - **Don't install backup agents** — they'll try to index the share and produce absurd results.
 - **Clock drift** — if the VM hibernates and resumes, clock can drift enough to confuse AD. Disable sleep/hibernate.
 - **VHDX dynamic expansion** — dynamic-expanding VHDX grows as physical allocation grows, not as logical size grows. Sparse files are logical-only, so the VHDX stays small. Expected final VHDX size: under 100 GB.

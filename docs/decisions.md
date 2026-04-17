@@ -4,6 +4,25 @@ Running log of decisions made during design. Newest at top.
 
 ---
 
+## 2026-04-17 (round 9) — data-disk provisioning scripted
+
+### D-048: Dev config targets the live `S:\Share`, not a repo-relative `test-data\Share`
+First dev config set `scale.rootPath` to the repo-relative `test-data\Share` (the relative-path resolver per D-037) so dev runs could work before `S:` was provisioned. Now that `Initialize-AcmeDisk.ps1` is run during VM bootstrap, `S:\Share` exists from day one and there's no benefit to the repo-relative fallback — dev and prod target the same path and differ only in `totalFiles` / `parallelThreads` / `batchSize`. D-037's rel-path resolver stays in the scripts (harmless, still correct behavior if anyone does use a relative path).
+
+### D-047: Defender is fully disabled (service stopped) on the lab VM, not merely excluded
+First plan was per-path exclusions on `S:\` per Phase 0. User called for a stronger stance ("completely disabled for everything"). `Disable-AcmeDefender.ps1` layers three things: `Set-MpPreference` flags, policy registry keys under `HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender` (Server-SKU only — blocked on client Windows), and belt-and-suspenders exclusion paths. The policy keys (`DisableAntiSpyware`, `DisableAntiVirus`) are the effective kill: within ~2–5s of writing them, the WinDefend service itself transitions to `AMRunningMode: Not running` and `Get-MpPreference` starts returning 0x800106ba (service unreachable). That error is the success signal, not a failure. Precondition: Tamper Protection must be OFF — otherwise the preference writes silently revert. Script checks and throws. Scope is lab VM only; do not run elsewhere.
+
+### D-044: `Initialize-AcmeDisk.ps1` is the authoritative format step for `S:`
+Manual Disk Management + `Format-Volume` was error-prone (easy to miss `-UseLargeFRS`, easy to leave indexing on, easy to forget the 8.3-names disable). Locked the parameter set into a single helper script — one call does online → GPT init → partition → format with 4 KB clusters + Large FRS + `AcmeShare` label → disable 8.3 names + last-access + indexing → create `S:\Share` + sparse flag. Parameters chosen for 10M-file scale: 4 KB AU (64 KB wastes ~600 GB at scale), Large FRS (1 KB MFT records hold more attributes inline — less fragmentation), indexing off (Windows Search on 10M files is suicidal). Compression explicitly disabled — NTFS compression conflicts with sparse flag semantics. Docs table in `docs/04-vm-provisioning.md` Phase 3 is the source of truth for the parameter matrix.
+
+### D-045: Disk script handles the virtio offline-by-default gotcha inline
+On KVM/Proxmox, a freshly-attached raw-backed disk often shows up to Windows as offline and read-only. Rather than documenting this as a "do this manually first" step, `Initialize-AcmeDisk.ps1` runs `Set-Disk -IsOffline $false` / `-IsReadOnly $false` against any disk in that state before touching partitioning. Keeps the happy path a single command regardless of hypervisor.
+
+### D-046: CIM over WMI for volume indexing toggle (PS 7 compat)
+First draft of the disk script used `Get-WmiObject Win32_Volume` + `.Put()` to flip `IndexingEnabled`. `Get-WmiObject` was removed in PowerShell 7; the equivalent is `Get-CimInstance | Set-CimInstance -Property @{ IndexingEnabled = $false }`. All WMI-flavored snippets in new scripts should use CIM.
+
+---
+
 ## 2026-04-17 (round 8) — remaining pipeline scripts implemented
 
 ### D-043: Master orchestrator shells out to `pwsh -File` per phase (not dot-sourcing)

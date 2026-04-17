@@ -1,5 +1,5 @@
 {
-  "$comment": "Dev/test overrides of main-config.json. Keep in sync with main-config.json structurally — only scale.* fields should differ. rootPath is repo-relative; scripts resolve against repo root when not absolute.",
+  "$comment": "Dev/test overrides of main-config.json. Keep in sync with main-config.json structurally — only scale.* fields should differ. Writes to S:\\Share (same as prod) — smaller totalFiles for fast iteration.",
 
   "meta": {
     "version": "0.1.0",
@@ -78,9 +78,9 @@
   },
 
   "scale": {
-    "$comment": "DEV OVERRIDES: rootPath is repo-relative (test-data/Share), totalFiles shrunk to 2000 for fast iteration.",
+    "$comment": "DEV OVERRIDES: same rootPath as prod (S:\\Share), totalFiles shrunk to 2000 and threads to 4 for fast iteration. Re-runs wipe S:\\Share — don't point at a populated prod dataset.",
     "totalFiles": 2000,
-    "rootPath": "test-data\\Share",
+    "rootPath": "S:\\Share",
     "parallelThreads": 4,
     "batchSize": 250
   },
