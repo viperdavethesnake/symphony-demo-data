@@ -4,6 +4,21 @@ Running log of decisions made during design. Newest at top.
 
 ---
 
+## 2026-04-18
+
+### D-029: Scrapped the planning pipeline, replaced with one streaming script
+The manifest-first architecture (Plan → Folders → Files → Timestamps → Owners) looked clean on paper but burned a day on PowerShell array/LOH quirks at 10M scale without writing a single file. The planning bet — determinism, resumability, inspect-before-execute — wasn't worth the cost. None of those properties were actually being used.
+
+New architecture: `Build-AcmeShare.ps1`. One script. Phase A builds the folder tree (serial, seconds). Phase B is parallel runspaces that own a chunk of folders end-to-end — for each folder, sample attributes and create files + sparse + header + size + timestamps + owner in one pass. No in-memory accumulation beyond one folder's worth of state. No file manifest emitted.
+
+Duplicates handled in a final single-threaded pass that picks files from disk and copies them. Version drift inlined in Phase B.
+
+Dead scripts deleted: `Plan-AcmeData.ps1`, `Build-AcmeFolders.ps1`, `Build-AcmeFiles.ps1`, `Set-AcmeTimestamps.ps1`, `Set-AcmeOwners.ps1`. Dead artifact: `file-manifest.jsonl`.
+
+See `docs/06-streaming-rewrite.md` for the full spec.
+
+---
+
 ## 2026-04-17 (round 9) — data-disk provisioning scripted
 
 ### D-048: Dev config targets the live `S:\Share`, not a repo-relative `test-data\Share`
