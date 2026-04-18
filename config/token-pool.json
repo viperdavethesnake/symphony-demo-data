@@ -1,0 +1,59 @@
+{
+  "$comment": "Content-neutral token pool for filling filename placeholders and folder templates. Not real words, not real companies — synthetic but plausible. Used by the planner to render {codeword}, {vendorList:N}, etc.",
+
+  "codewords": [
+    "Apollo", "Phoenix", "Atlas", "Titan", "Nova", "Orion", "Helios", "Sirius",
+    "Vega", "Draco", "Lyra", "Pegasus", "Andromeda", "Centauri", "Altair", "Rigel",
+    "Meridian", "Horizon", "Vertex", "Nexus", "Prism", "Cipher", "Catalyst", "Beacon",
+    "Summit", "Keystone", "Anchor", "Compass", "Harbor", "Delta", "Omega", "Sigma",
+    "Zenith", "Aurora", "Eclipse", "Vanguard", "Sentinel", "Paragon", "Odyssey", "Voyager",
+    "Falcon", "Raven", "Hawk", "Condor", "Osprey", "Kestrel", "Harrier", "Merlin",
+    "Ironclad", "Stronghold", "Bastion", "Citadel", "Fortress", "Redoubt", "Rampart", "Bulwark",
+    "Cascade", "Torrent", "Current", "Tide", "Surge", "Wave", "Swell", "Eddy",
+    "Granite", "Basalt", "Quartz", "Obsidian", "Flint", "Marble", "Slate", "Onyx",
+    "Avalon", "Elysium", "Arcadia", "Utopia", "Shangri", "Valhalla", "Asgard", "Olympus",
+    "Blackbird", "Whitetail", "Bluefin", "Redwing", "Goldcrest", "Silverback", "Greyhound", "Copperhead",
+    "Thunder", "Lightning", "Tempest", "Hurricane", "Typhoon", "Cyclone", "Monsoon", "Blizzard"
+  ],
+
+  "vendors": [
+    "Acme Industries", "Globex Corporation", "Initech", "Umbrella Logistics", "Cyberdyne Systems",
+    "Stark Enterprises", "Wayne Holdings", "Oscorp", "Tyrell Corp", "Wonka Industries",
+    "Pied Piper", "Hooli", "Aviato", "Massive Dynamic", "Soylent Group",
+    "Duff Beer", "Kwik-E-Mart Supply", "Planet Express", "Bluth Company", "Dunder Mifflin",
+    "Michael Scott Paper", "Vandelay Industries", "Kramerica", "Pendant Publishing", "Costanza Inc",
+    "Sterling Cooper", "Rand Enterprises", "Gekko Holdings", "Bluestar Airlines", "Teldar Paper",
+    "Prestige Worldwide", "Sweetums", "Entertainment 720", "Ice Town", "Rent-a-Swag",
+    "Los Pollos Hermanos", "Madrigal Electromotive", "Vamonos Pest", "Schrader Materials", "Gray Matter",
+    "Spacely Sprockets", "Cogswell Cogs", "Ollivanders", "Zonko's Joke Shop", "Flourish and Blotts",
+    "Tip Top Cleaners", "Tom's Bistro", "Big Kahuna Burger", "Nakatomi Trading", "Cyberdine"
+  ],
+
+  "revisions": [
+    "v1", "v2", "v3", "v1.0", "v1.1", "v1.2", "v2.0", "v2.1", "v3.0",
+    "draft", "DRAFT", "rev1", "rev2", "rev3", "revA", "revB", "revC",
+    "FINAL", "Final", "final", "FINAL_v2", "FINAL_USE_THIS", "ACTUAL_FINAL",
+    "Approved", "InReview", "Signed", "Countersigned", "Executed",
+    "WIP", "in-progress", "done", "archived", "deprecated"
+  ],
+
+  "placeholderRules": {
+    "$comment": "How numeric placeholders render.",
+    "n2": "Zero-padded 2-digit number, 00..99",
+    "n3": "Zero-padded 3-digit number, 000..999",
+    "n4": "Zero-padded 4-digit number, 0000..9999",
+    "n5": "Zero-padded 5-digit number, 00000..99999",
+    "date": "Sampled date within the file's age bucket, rendered YYYYMMDD or YYYY-MM-DD (50/50)",
+    "year": "Sampled year within the file's age bucket",
+    "q": "Q1|Q2|Q3|Q4, sampled",
+    "month": "01..12 or Jan..Dec (50/50)",
+    "codeword": "Random pick from codewords",
+    "rev": "Random pick from revisions"
+  },
+
+  "quartersVerbose": ["Q1", "Q2", "Q3", "Q4"],
+  "monthsNumeric": ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"],
+  "monthsShort": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+
+  "$implementation_notes": "The planner renders a filename by picking one pattern from the extension's filenamePatterns array, then substituting each {placeholder} per the rules above. All substitution is seeded-deterministic given the file's index."
+}

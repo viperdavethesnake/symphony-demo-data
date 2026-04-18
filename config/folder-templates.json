@@ -1,0 +1,403 @@
+{
+  "$comment": "Per-department folder templates for the planner. Each department has a root structure, optional year/quarter parameterization, file-type affinity multipliers (relative to the global fileTypeMix), and an owner/age bias. The planner walks these templates, expands year/quarter ranges, injects variability (extra subfolders, random project names), and assigns files.",
+
+  "defaults": {
+    "$comment": "Values inherited unless a department overrides.",
+    "yearRangeStart": 2012,
+    "yearRangeEnd": 2026,
+    "filesPerFolderP50": 150,
+    "filesPerFolderP95": 800,
+    "filesPerFolderMax": 10000,
+    "deepFolderChance": 0.02,
+    "deepFolderMaxDepth": 9
+  },
+
+  "departments": {
+    "Sales": {
+      "structure": [
+        "Briefs/{yearRange}",
+        "Quotes/{yearRange}/{month}",
+        "Collateral/{codewordList:8}",
+        "Proposals/{yearRange}",
+        "CRM_Exports/{yearRange}/{q}",
+        "Training/{codewordList:5}",
+        "Commissions/{yearRange}/{month}",
+        "Pipeline/{yearRange}/{q}",
+        "Archive/{yearRangeStart:2012,yearRangeEnd:2019}"
+      ],
+      "affinityMultipliers": {
+        "xlsx": 3.0, "pptx": 2.5, "pdf": 2.0, "docx": 1.8,
+        "csv": 2.0, "jpg": 1.2, "png": 1.2,
+        "zip": 0.7, "iso": 0.1, "mp4": 1.3, "psd": 0.2
+      },
+      "ageBias": "mixed",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "department"
+    },
+
+    "Marketing": {
+      "structure": [
+        "Campaigns/{codewordList:12}/{yearRange}",
+        "BrandAssets/Logos",
+        "BrandAssets/Photos/{yearRange}/{q}",
+        "BrandAssets/Videos/{yearRange}",
+        "Design/{codewordList:10}",
+        "Collateral/{codewordList:8}/{rev}",
+        "Events/{yearRange}/{codewordList:5}",
+        "Webinars/{yearRange}",
+        "Analytics/{yearRange}/{month}",
+        "Archive/{yearRangeStart:2012,yearRangeEnd:2019}"
+      ],
+      "affinityMultipliers": {
+        "pptx": 3.5, "pdf": 2.5, "psd": 5.0, "ai": 4.0,
+        "jpg": 4.0, "png": 3.0, "tiff": 2.0,
+        "mp4": 4.5, "mov": 3.0, "mp3": 1.5,
+        "docx": 1.5, "xlsx": 1.0,
+        "zip": 1.5, "iso": 0.1
+      },
+      "ageBias": "recent-leaning",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "department"
+    },
+
+    "Engineering": {
+      "structure": [
+        "Projects/{codewordList:20}/{src,docs,builds,tests,vendor}",
+        "Builds/{codewordList:10}/{yearRange}",
+        "Releases/{codewordList:10}/{version}",
+        "Vendors/{vendorList:15}",
+        "Designs/{codewordList:12}",
+        "Testing/{codewordList:8}/{yearRange}",
+        "Archive/{yearRangeStart:2012,yearRangeEnd:2019}",
+        "Legacy/{codewordList:6}"
+      ],
+      "affinityMultipliers": {
+        "zip": 4.0, "7z": 3.0, "tar": 2.0, "gz": 2.5,
+        "iso": 5.0, "msi": 3.0, "exe": 2.5, "vhdx": 2.0,
+        "py": 3.0, "js": 3.0, "json": 2.5, "xml": 2.0, "md": 2.5,
+        "docx": 1.8, "xlsx": 1.2, "pdf": 1.5, "pptx": 1.2,
+        "log": 4.0, "csv": 1.5,
+        "dwg": 2.0, "step": 1.5,
+        "psd": 0.2, "mp4": 0.8
+      },
+      "ageBias": "mixed",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "department"
+    },
+
+    "Finance": {
+      "structure": [
+        "AP/{yearRange}/{month}",
+        "AR/{yearRange}/{month}",
+        "GL/{yearRange}/{q}",
+        "Budgets/{yearRange}",
+        "Audit/{external,internal}/{yearRange}",
+        "Tax/{federal,state,international}/{yearRange}",
+        "Policies",
+        "Reports/{monthly,quarterly,annual}/{yearRange}",
+        "Vendors/{vendorList:20}",
+        "Payroll/{yearRange}/{month}",
+        "Archive/{yearRangeStart:2010,yearRangeEnd:2018}"
+      ],
+      "affinityMultipliers": {
+        "xlsx": 5.0, "xls": 2.0, "pdf": 4.0, "docx": 2.0,
+        "csv": 4.0, "txt": 1.5,
+        "zip": 1.2, "tiff": 1.5,
+        "iso": 0.05, "mp4": 0.1, "psd": 0.05
+      },
+      "ageBias": "mixed",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "department",
+      "sensitiveFolders": ["Payroll", "Audit", "Tax"]
+    },
+
+    "Legal": {
+      "structure": [
+        "Contracts/{codewordList:20}/{yearRange}",
+        "NDAs/{yearRange}",
+        "IP/Patents/{yearRange}",
+        "IP/Trademarks",
+        "IP/Copyrights",
+        "Litigation/{codewordList:8}/{yearRange}",
+        "Compliance/{yearRange}",
+        "Policies",
+        "LegalHold/{codewordList:5}",
+        "Archive/{yearRangeStart:2010,yearRangeEnd:2018}"
+      ],
+      "affinityMultipliers": {
+        "docx": 5.0, "doc": 2.0, "pdf": 6.0, "rtf": 2.0,
+        "xlsx": 1.2, "tiff": 2.0, "jpg": 1.0,
+        "zip": 1.2,
+        "iso": 0.01, "mp4": 0.1, "psd": 0.01
+      },
+      "ageBias": "old-leaning",
+      "archiveFolderAgeBias": "very-old",
+      "ownerBias": "department",
+      "sensitiveFolders": ["Contracts", "Litigation", "IP", "LegalHold"]
+    },
+
+    "HR": {
+      "structure": [
+        "Employees/{a-z:distributed}",
+        "Payroll/{yearRange}/{month}",
+        "Benefits/{yearRange}",
+        "Recruiting/{yearRange}/{q}",
+        "Training/{codewordList:10}",
+        "Policies",
+        "Onboarding",
+        "Offboarding/{yearRange}",
+        "Compliance/{yearRange}",
+        "PerformanceReviews/{yearRange}",
+        "Archive/{yearRangeStart:2010,yearRangeEnd:2018}"
+      ],
+      "affinityMultipliers": {
+        "docx": 4.0, "pdf": 5.0, "xlsx": 3.0,
+        "tiff": 2.0, "jpg": 1.2,
+        "zip": 1.0,
+        "iso": 0.01, "mp4": 0.3, "psd": 0.05
+      },
+      "ageBias": "mixed",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "department",
+      "sensitiveFolders": ["Employees", "Payroll", "PerformanceReviews", "Offboarding"]
+    },
+
+    "IT": {
+      "structure": [
+        "Software/Installers/{codewordList:15}",
+        "Software/ISOs",
+        "Software/Licenses",
+        "Infrastructure/Diagrams",
+        "Infrastructure/Runbooks/{codewordList:10}",
+        "Infrastructure/Configs/{codewordList:12}",
+        "Backups/{yearRange}/{month}",
+        "Logs/{codewordList:8}/{yearRange}",
+        "Security/Policies",
+        "Security/Incidents/{yearRange}",
+        "Assets/{yearRange}",
+        "Archive/{yearRangeStart:2010,yearRangeEnd:2018}"
+      ],
+      "affinityMultipliers": {
+        "iso": 8.0, "msi": 6.0, "exe": 4.0, "vhdx": 3.0,
+        "zip": 3.0, "7z": 2.5, "rar": 1.5, "gz": 2.5,
+        "log": 8.0, "txt": 2.0, "csv": 2.0,
+        "xml": 3.0, "json": 3.0, "md": 2.0,
+        "docx": 1.5, "pdf": 2.0, "xlsx": 1.5,
+        "bak": 4.0,
+        "psd": 0.05, "mp4": 0.3
+      },
+      "ageBias": "mixed",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "it-admins-and-service-accounts",
+      "sensitiveFolders": ["Security"]
+    },
+
+    "Executive": {
+      "structure": [
+        "Board/{yearRange}/{month}",
+        "Strategy/{yearRange}",
+        "Investor/{yearRange}/{q}",
+        "Acquisitions/{codewordList:5}",
+        "ExecMeetings/{yearRange}/{month}",
+        "Confidential",
+        "Archive/{yearRangeStart:2012,yearRangeEnd:2020}"
+      ],
+      "affinityMultipliers": {
+        "pptx": 4.0, "docx": 3.5, "pdf": 4.0, "xlsx": 3.0,
+        "zip": 0.8,
+        "iso": 0.01, "mp4": 0.5, "psd": 0.1
+      },
+      "ageBias": "mixed",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "executives-only",
+      "sensitiveFolders": ["Confidential", "Acquisitions", "Board", "Investor"]
+    },
+
+    "Operations": {
+      "structure": [
+        "Facilities/{yearRange}",
+        "Logistics/{yearRange}/{month}",
+        "Procurement/{yearRange}",
+        "Vendors/{vendorList:25}",
+        "Processes/{codewordList:12}",
+        "SLAs/{codewordList:8}",
+        "Reports/{yearRange}/{month}",
+        "Archive/{yearRangeStart:2012,yearRangeEnd:2019}"
+      ],
+      "affinityMultipliers": {
+        "xlsx": 3.0, "pdf": 2.5, "docx": 2.5, "csv": 2.5,
+        "jpg": 1.2, "tiff": 1.0,
+        "zip": 1.0,
+        "iso": 0.1, "mp4": 0.5, "psd": 0.1
+      },
+      "ageBias": "mixed",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "department"
+    },
+
+    "CustomerSuccess": {
+      "structure": [
+        "Accounts/{codewordList:30}",
+        "Tickets/{yearRange}/{q}",
+        "Onboarding/{codewordList:15}",
+        "TrainingMaterials/{codewordList:10}",
+        "QBRs/{yearRange}/{q}",
+        "Surveys/{yearRange}",
+        "Escalations/{yearRange}",
+        "Archive/{yearRangeStart:2014,yearRangeEnd:2020}"
+      ],
+      "affinityMultipliers": {
+        "pdf": 3.0, "docx": 2.5, "pptx": 3.0, "xlsx": 2.5,
+        "csv": 2.5,
+        "jpg": 1.2, "mp4": 1.5, "png": 1.5,
+        "zip": 1.0,
+        "iso": 0.05, "psd": 0.2
+      },
+      "ageBias": "recent-leaning",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "department"
+    },
+
+    "Product": {
+      "structure": [
+        "Roadmaps/{yearRange}/{q}",
+        "PRDs/{codewordList:20}",
+        "Research/{codewordList:12}",
+        "UserInterviews/{yearRange}/{q}",
+        "Competitive/{yearRange}",
+        "Analytics/{yearRange}/{month}",
+        "Mockups/{codewordList:15}",
+        "Specs/{codewordList:15}",
+        "Archive/{yearRangeStart:2014,yearRangeEnd:2020}"
+      ],
+      "affinityMultipliers": {
+        "docx": 3.0, "pdf": 2.5, "pptx": 3.0, "xlsx": 2.0,
+        "md": 3.0,
+        "jpg": 1.5, "png": 2.5, "psd": 3.0, "ai": 2.0,
+        "mp4": 1.5,
+        "zip": 1.2,
+        "iso": 0.05
+      },
+      "ageBias": "recent-leaning",
+      "archiveFolderAgeBias": "old",
+      "ownerBias": "department"
+    },
+
+    "Facilities": {
+      "structure": [
+        "Buildings/{codewordList:5}",
+        "Maintenance/{yearRange}/{month}",
+        "Leases/{yearRange}",
+        "Safety/{yearRange}",
+        "Floorplans/{codewordList:8}",
+        "Vendors/{vendorList:10}",
+        "Archive/{yearRangeStart:2010,yearRangeEnd:2018}"
+      ],
+      "affinityMultipliers": {
+        "pdf": 3.0, "docx": 2.5, "xlsx": 2.0,
+        "dwg": 4.0, "step": 2.0,
+        "jpg": 2.0, "tiff": 1.5,
+        "zip": 1.0,
+        "iso": 0.01, "psd": 0.05, "mp4": 0.2
+      },
+      "ageBias": "old-leaning",
+      "archiveFolderAgeBias": "very-old",
+      "ownerBias": "department"
+    }
+  },
+
+  "shared": {
+    "Public": {
+      "structure": [
+        "Announcements/{yearRange}",
+        "Policies",
+        "Templates/{docx,xlsx,pptx}",
+        "CompanyEvents/{yearRange}",
+        "Newsletter/{yearRange}/{month}"
+      ],
+      "affinityMultipliers": {
+        "pdf": 3.0, "docx": 2.5, "pptx": 2.0, "xlsx": 1.5,
+        "jpg": 2.0, "png": 2.0, "mp4": 1.5
+      },
+      "ageBias": "mixed",
+      "ownerBias": "all-staff"
+    },
+
+    "Scratch": {
+      "structure": [
+        "UserScratch/{userList:40}",
+        "Temp/{yearRange}/{month}",
+        "Sandbox/{codewordList:20}"
+      ],
+      "affinityMultipliers": {
+        "$comment": "Scratch is chaos. Use global mix with junk bias.",
+        "tmp": 4.0, "bak": 3.0, "lock": 2.0,
+        "zip": 1.5, "iso": 1.2,
+        "jpg": 1.5, "mp4": 1.3, "mp3": 1.5
+      },
+      "ageBias": "mixed",
+      "ownerBias": "mixed"
+    },
+
+    "Archive": {
+      "structure": [
+        "ByYear/{yearRangeStart:2008,yearRangeEnd:2018}",
+        "ByDepartment/{departmentList}/{yearRangeStart:2008,yearRangeEnd:2018}",
+        "Legacy/{codewordList:15}"
+      ],
+      "affinityMultipliers": {
+        "zip": 3.0, "7z": 2.5, "tar": 2.0, "bak": 3.0,
+        "pdf": 2.0, "doc": 2.0, "xls": 2.0, "pptx": 1.5,
+        "iso": 1.5, "vhdx": 1.0
+      },
+      "ageBias": "very-old",
+      "ownerBias": "mixed-including-terminated"
+    },
+
+    "Projects": {
+      "structure": [
+        "{codewordList:40}/{src,docs,assets,meetings,deliverables}"
+      ],
+      "affinityMultipliers": {
+        "docx": 2.0, "pdf": 2.0, "pptx": 2.0, "xlsx": 1.5,
+        "jpg": 1.5, "png": 1.5, "psd": 1.5,
+        "zip": 1.5,
+        "mp4": 1.5
+      },
+      "ageBias": "mixed",
+      "ownerBias": "cross-department"
+    }
+  },
+
+  "tokenExpansions": {
+    "$comment": "How placeholders in the structure arrays resolve. The planner implements these.",
+    "yearRange": "Expand {yearRangeStart..yearRangeEnd} one folder per year (e.g. FY2015, FY2016, ...)",
+    "month": "Expand 01..12 as folder names (e.g. 01-Jan, 02-Feb, ...)",
+    "q": "Expand Q1..Q4",
+    "codewordList:N": "Pick N codewords from token-pool.json codewords",
+    "vendorList:N": "Pick N vendor names from token-pool.json vendors",
+    "userList:N": "Pick N random usernames from ad-manifest.json",
+    "departmentList": "Expand all 12 department names",
+    "a-z:distributed": "Create 26 folders A..Z but distribute users/children unevenly (realistic alphabetic distribution)",
+    "rev": "Expand rev1, rev2, rev3, final, archive",
+    "version": "Expand v1.0, v1.1, v1.2, v2.0, v2.1 ... (bounded)"
+  },
+
+  "ageBiasDefinitions": {
+    "mixed": "Use global ageDistribution as-is",
+    "recent-leaning": "Shift distribution toward newer: multiply last30days, days30to365, years1to2 weights by 2.0; multiply years10to15 by 0.3",
+    "old-leaning": "Shift toward older: multiply years5to10, years10to15 weights by 2.0; multiply last30days, days30to365 by 0.5",
+    "very-old": "Heavy old bias: multiply years10to15 by 4.0, years5to10 by 2.5; last30days and days30to365 by 0.1",
+    "old": "Between old-leaning and very-old"
+  },
+
+  "ownerBiasDefinitions": {
+    "department": "Sample from department users weighted by seniority; 10% service accounts; 5% hoarders across-company",
+    "executives-only": "Sample only from Executive department users + CEO service accounts",
+    "it-admins-and-service-accounts": "Sample heavily from IT department + service accounts (esp. svc_backup, svc_monitoring)",
+    "all-staff": "Uniform sample across all active users",
+    "mixed": "Sample from all users including some disabled and terminated",
+    "mixed-including-terminated": "Higher weight on terminated users (archive is where ex-employee content accumulates)",
+    "cross-department": "Sample users from 2–3 different departments per folder"
+  }
+}

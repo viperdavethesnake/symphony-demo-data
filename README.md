@@ -30,23 +30,35 @@ Symphony's three highest-value stories, tuned into the dataset on purpose:
 ```
 symphony-demo-data/
 ├── README.md
+├── CLAUDE.md                   ← standing instructions for Claude Code
 ├── docs/
-│   ├── 00-overview.md         ← project scope, architecture, value props
-│   ├── 01-ad-design.md        ← Active Directory spec
-│   ├── 02-file-generation.md  ← (TBD) file gen architecture
-│   ├── 03-acl-design.md       ← (TBD) ACL patterns
-│   ├── 04-vm-provisioning.md  ← (TBD) VM build steps
-│   └── decisions.md           ← running log of decisions
+│   ├── 00-overview.md          ← project scope, architecture, value props
+│   ├── 01-ad-design.md         ← Active Directory spec
+│   ├── 02-file-generation.md   ← file generation architecture
+│   ├── 03-acl-design.md        ← ACL design and mess injection
+│   ├── 04-vm-provisioning.md   ← VM build checklist
+│   ├── 05-orchestration.md     ← how the scripts fit together
+│   └── decisions.md            ← running log of decisions
 ├── config/
-│   ├── main-config.json       ← primary knobs
-│   └── filetypes.json         ← (TBD) extension → header/size table
-├── scripts/                   ← PowerShell generators (TBD)
-└── manifests/                 ← runtime artifacts (gitignored)
+│   ├── main-config.json        ← primary knobs (scale, distributions, percentages)
+│   ├── filetypes.json          ← extension catalog, magic bytes, size distributions
+│   ├── folder-templates.json   ← per-department folder structure templates
+│   └── token-pool.json         ← codewords, vendors, revision labels
+├── scripts/                    ← PowerShell generators (to be implemented)
+└── manifests/                  ← runtime artifacts (gitignored)
 ```
 
 ## Getting started (on the Windows VM)
 
-Not yet — scripts are still being designed. See `docs/` for the current spec.
+Full VM build steps and run procedure are documented in `docs/04-vm-provisioning.md`. High-level:
+
+1. Build a Windows Server 2022 VM (AD DS + DNS + File Services)
+2. Install PowerShell 7 and git
+3. Clone this repo to `C:\Projects\symphony-demo-data`
+4. Open Claude Code in the repo — `CLAUDE.md` loads automatically as standing instructions
+5. Implement the scripts per the specs in `docs/`
+6. Run `scripts\Build-AcmeData.ps1 -ConfigPath .\config\main-config.json`
+7. Snapshot the VM
 
 ## Roles
 

@@ -4,6 +4,46 @@ Running log of decisions made during design. Newest at top.
 
 ---
 
+## 2026-04-17 (round 3)
+
+### D-027: Token pool is synthetic, not real
+`config/token-pool.json` uses fictional codewords and parody vendor names (Globex, Initech, etc.) rather than real-looking companies. Avoids any accidental impression that this data is real or references real entities.
+
+### D-026: Folder templates parameterized via token expansions
+`config/folder-templates.json` uses a small templating syntax (`{yearRange}`, `{codewordList:N}`, `{q}`, `{month}`, etc.) so templates are compact and readable. The planner implements the expansion rules listed in the same file.
+
+### D-025: Per-department file-type affinity multipliers
+Each department has an `affinityMultipliers` map that biases the global fileTypeMix for that department's folders (Marketing heavy on PSD/AI/MP4, Finance heavy on XLSX/PDF, IT heavy on ISO/MSI/LOG). The planner multiplies the global mix weights by these multipliers per folder.
+
+### D-024: Owner bias is per-folder, not per-file
+Folders have an `ownerBias` that determines the weighted owner pool for all files in that folder. Files still sample individually, but from a biased pool. Produces realistic "this folder is mostly Sarah's stuff" patterns.
+
+### D-023: Five named age-bias profiles
+`mixed`, `recent-leaning`, `old-leaning`, `old`, `very-old`. Each is a set of weight multipliers applied to the global ageDistribution. Archive folders get `very-old`, Product/Marketing get `recent-leaning`, most get `mixed`.
+
+### D-022: Resume strategy via `-SkipPhase`
+Master orchestrator `Build-AcmeData.ps1` supports `-SkipPhase @('ad','plan','2c','2d')` to resume after failures. The file-manifest is the source of truth — later phases can re-apply from it idempotently.
+
+### D-021: Three snapshot points
+VM snapshots at `00-clean-dc`, `01-ad-populated`, `02-full-dataset`. Demo restore always uses `02`. `01` is the restore point for regen with tweaked knobs.
+
+### D-020: Defender exclusion on S:
+Windows Defender real-time scanning of 10M file creates is catastrophic. Exclude `S:\` before running file gen. Same for any other AV the lab hypervisor runs.
+
+### D-019: ACL mess patterns are per-folder percentages
+All ACL mess percentages (oversharing, orphaned SIDs, broken inheritance, etc.) apply per folder, not per file. File-level ACEs are the exception at ~0.5% of files for the "direct user" pattern.
+
+### D-018: Six deliberate ACL mess patterns
+1. Oversharing (Everyone/Authenticated Users/Domain Users on sensitive folders)
+2. Orphaned SIDs (from terminated users, post-deletion)
+3. Broken inheritance (stricter/looser/unrelated)
+4. Direct-user ACEs (individuals instead of groups)
+5. Owner mismatches (random user, ex-admin, service account, terminated)
+6. Conflicting allow/deny ACEs
+Each has specified target folders so the demo story lands.
+
+---
+
 ## 2026-04-17 (continued)
 
 ### D-017: Filename token pool, not realistic sentences

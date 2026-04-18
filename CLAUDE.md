@@ -32,16 +32,19 @@ symphony-demo-data/
 ├── CLAUDE.md                    ← this file
 ├── docs/
 │   ├── 00-overview.md           ← scope, architecture, value props, scale
-│   ├── 01-ad-design.md          ← AD spec (DONE, implement against this)
-│   ├── 02-file-generation.md    ← file gen architecture (TBD)
-│   ├── 03-acl-design.md         ← ACL patterns (TBD)
-│   ├── 04-vm-provisioning.md    ← VM build steps (TBD)
+│   ├── 01-ad-design.md          ← AD spec
+│   ├── 02-file-generation.md    ← file gen architecture
+│   ├── 03-acl-design.md         ← ACL patterns and mess injection
+│   ├── 04-vm-provisioning.md    ← VM build steps end-to-end
+│   ├── 05-orchestration.md      ← how the scripts fit together
 │   └── decisions.md             ← running decision log (read this)
 ├── config/
 │   ├── main-config.json         ← primary knobs
-│   └── filetypes.json           ← extension → header/size table (TBD)
-├── scripts/                     ← PowerShell goes here
-└── manifests/                   ← gitignored runtime artifacts (ad-manifest.json, etc.)
+│   ├── filetypes.json           ← extension → header/size table
+│   ├── folder-templates.json    ← per-department folder structure templates
+│   └── token-pool.json          ← codewords, vendors, revisions for filename generation
+├── scripts/                     ← PowerShell goes here (your job)
+└── manifests/                   ← gitignored runtime artifacts
 ```
 
 ## Demo value props the data is tuned for
@@ -62,13 +65,18 @@ Everything must land one of these three stories. Don't add features that don't.
 
 ## Phase order for the full build
 
-1. **VM provisioning** — install Windows features, format S:, enable sparse
-2. **AD setup** — `Build-AcmeAD.ps1` creates OUs, users, groups. Emits `manifests/ad-manifest.json`
-3. **File manifest build** — plan every file from config + seed
-4. **File creation** — parallel writers: magic-byte header + sparse body
-5. **Timestamp application** — set btime/mtime/atime consistently
-6. **ACL application** — folder-level ACLs, inject deliberate mess
-7. **Orphan pass** — delete the ~12 terminated users so their SIDs become unresolvable
+1. **VM provisioning** — install Windows features, format S:, enable sparse. See `docs/04-vm-provisioning.md`
+2. **AD setup** — `Build-AcmeAD.ps1` creates OUs, users, groups. Emits `manifests/ad-manifest.json`. See `docs/01-ad-design.md`
+3. **Plan** — `Plan-AcmeData.ps1` emits `folder-manifest.json` and `file-manifest.jsonl`. See `docs/02-file-generation.md`
+4. **Folder creation** — walk folder-manifest, create directories
+5. **File creation** — parallel workers: magic-byte header + sparse body
+6. **Timestamp application** — set btime/mtime/atime consistently
+7. **Owner application** — apply ownerSid per file
+8. **ACL application** — folder-level ACLs + mess patterns. See `docs/03-acl-design.md`
+9. **Orphan pass** — delete the ~12 terminated users so their SIDs become unresolvable
+10. **Verification** — `Test-AcmeData.ps1` produces `verification.json`
+
+Orchestration details and the master script shape in `docs/05-orchestration.md`.
 
 ## Coding standards
 
