@@ -40,7 +40,7 @@ Everything in the generator is designed to make one of these three stories pop o
 ## Architecture
 
 ### Single VM, multiple roles
-One Windows Server 2022 VM. Role consolidation is intentional — this is a demo lab, not production.
+One Windows Server 2025 VM. Role consolidation is intentional — this is a demo lab, not production.
 
 - **AD DS** — domain controller for `acme.local`
 - **DNS** — integrated, authoritative for the domain

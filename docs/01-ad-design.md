@@ -4,7 +4,7 @@ Active Directory is the identity layer for the entire demo. Every file's owner a
 
 ## Role of the VM
 
-**Single Windows Server 2022 Standard VM** hosts:
+**Single Windows Server 2025 Standard VM** hosts:
 - AD Domain Services (domain controller)
 - DNS (integrated, authoritative)
 - File Services (SMB share `S:\Share`)
@@ -17,7 +17,7 @@ Role consolidation is deliberate. This is a demo lab, not production.
 |---|---|
 | Forest / domain | `acme.local` |
 | NetBIOS name | `ACME` |
-| Functional level | Windows Server 2016 |
+| Functional level | Windows Server 2025 |
 | DNS | Integrated, VM points to itself (127.0.0.1) for resolution |
 | Trusts | None |
 | Sites | Default only |
@@ -87,10 +87,11 @@ acme.local
 - `displayName` — `Firstname Lastname`
 - `givenName`, `sn` — set
 - `department` — set to department name
-- `title` — per-department title pool (Engineering → Software Engineer / Senior Software Engineer / Staff Engineer / Engineering Manager / Director of Engineering / VP Engineering; Sales → SDR / AE / Senior AE / Sales Manager / Director of Sales / VP Sales; etc.)
-- `manager` — users report up within their own department (org chart generated, managers are senior titles)
-- `employeeID` — zero-padded 6-digit number
-- Names pulled from realistic first/last name pool (seeded, reproducible)
+- `title` — per-department title pool, **pyramid-weighted** (exponential): the junior title is ~2x more common than the next tier, ~4x more than the one above that, and so on. Produces realistic ratios — most users are individual contributors, a handful are VPs. Pool lives in the script (`$TitlePool`) keyed by department.
+- `manager` — within each department, non-senior users report up to a random senior-tier user in the same department. Senior-tier = upper half of that department's title pool. Most-senior users have `manager = $null`.
+- `employeeID` — zero-padded 6-digit number (starts at `100000`, incremented per user)
+- `accountPassword` — all generated accounts share the demo password from `config/main-config.json` (`ad.password`). Accounts are enabled with `PasswordNeverExpires` and `CannotChangePassword`. These accounts never log in.
+- Names pulled from `config/name-pool.json` (~200 first, ~200 last, seeded)
 
 ### Service accounts
 
@@ -119,22 +120,29 @@ Global security groups. Every active user in a department is a member of that de
 
 - `GRP_Sales`, `GRP_Marketing`, `GRP_Engineering`, `GRP_Finance`, `GRP_Legal`, `GRP_HR`, `GRP_IT`, `GRP_Executive`, `GRP_Operations`, `GRP_CustomerSuccess`, `GRP_Product`, `GRP_Facilities`
 
-### Role / cross-functional groups (~15)
+### Role / cross-functional groups (~14)
 
-Users get 1–3 of these in addition to their department group. Creates matrix membership — makes ACL analysis interesting.
+Two flavors of role-group membership populate matrix overlap for ACL analysis:
 
-- `GRP_Managers` — all users with manager-level titles
-- `GRP_Executives` — VP and above
-- `GRP_AllStaff` — everyone
-- `GRP_Contractors` — small subset flagged as contractors
-- `GRP_ProjectApollo`, `GRP_ProjectPhoenix`, `GRP_ProjectAtlas` — cross-functional project teams
-- `GRP_AuditCommittee` — small group with Finance + Legal + Executive overlap
-- `GRP_SecurityClearance` — small group
-- `GRP_RemoteWorkers` — ~30% of users
-- `GRP_Interns` — small group
-- `GRP_NewHires` — users with recent start dates
-- `GRP_BoardAccess` — exec-only
-- `GRP_LegalHold` — users under litigation hold (small, crosses departments)
+**Rule-based** (populated from user attributes, not sized):
+- `GRP_AllStaff` — every generated user (active, disabled, terminated)
+- `GRP_Managers` — users whose title contains `Manager`, `Director`, `VP `, `CEO`, `COO`, `CFO`, `CPO`, `Chief`, `General Counsel`, `Controller`, `CSM`, `Group PM`, or `Senior PM`
+- `GRP_Executives` — users whose title starts with `VP `, `Director of`, `CEO`, `COO`, `CFO`, `CPO`, `Chief`, or `General Counsel`
+
+**Sized** (populated by seeded random sampling — sizes live in `config/main-config.json` under `ad.roleGroupSizing`):
+- `GRP_Contractors` — `count: 20` from the active user pool
+- `GRP_ProjectApollo` — `count: 25`, cross-department
+- `GRP_ProjectPhoenix` — `count: 22`, cross-department
+- `GRP_ProjectAtlas` — `count: 18`, cross-department
+- `GRP_AuditCommittee` — `count: 6`, restricted to Finance + Legal + Executive
+- `GRP_SecurityClearance` — `count: 12`
+- `GRP_RemoteWorkers` — `percent: 30` of active users
+- `GRP_Interns` — `count: 8`
+- `GRP_NewHires` — `count: 15`
+- `GRP_BoardAccess` — `count: 3`, restricted to Executive
+- `GRP_LegalHold` — `count: 10`
+
+All sizes are config-driven — tweak the knobs in `ad.roleGroupSizing` without touching the script.
 
 ### Share / resource groups (~12)
 
@@ -152,11 +160,27 @@ These are what *should* appear on folder ACLs. Department groups get nested into
 
 Some folder ACLs **violate** this AGDLP pattern on purpose — referencing department groups directly, or individual users, or well-known SIDs like `Everyone`. That's the ACL-sprawl demo.
 
+### Group nesting
+
+Department groups get nested into resource groups per the map in `config/main-config.json` under `ad.groupNesting`:
+
+| Parent (Global) | Child (DomainLocal) |
+|---|---|
+| `GRP_Finance` | `GRP_FinanceReadWrite`, `GRP_FinanceReadOnly` |
+| `GRP_Legal` | `GRP_LegalContractsRW`, `GRP_LegalContractsRO` |
+| `GRP_Engineering` | `GRP_EngineeringBuildsRW` |
+| `GRP_Marketing` | `GRP_MarketingAssetsRW` |
+| `GRP_Executive` | `GRP_ExecutiveConfidential`, `GRP_BoardAccess` |
+| `GRP_HR` | `GRP_HRPayroll`, `GRP_HREmployeeRecords` |
+| `GRP_IT` | `GRP_ITAdmins` |
+| `GRP_AllStaff` | `GRP_PublicRead` |
+| `GRP_AuditCommittee` | `GRP_AuditReadOnly` |
+
 ## Admin Accounts
 
 - Built-in `Administrator` (for VM access)
-- `demo.admin` — used to run the generator scripts
-- Default `Domain Admins`, `Enterprise Admins`, `Schema Admins` — as AD creates them
+- `demo.admin` — created by `Build-AcmeAD.ps1` in `OU=ServiceAccounts,OU=Acme`, added to `Domain Admins`. Used to run the rest of the generator scripts. Configured via `ad.adminAccount` in `main-config.json`.
+- Default `Domain Admins`, `Enterprise Admins`, `Schema Admins` — as AD creates them; never touched by this script
 
 ## Generation Order
 

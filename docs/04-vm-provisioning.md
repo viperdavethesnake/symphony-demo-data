@@ -7,7 +7,7 @@ End-to-end checklist for building the Windows Server VM that hosts AD, DNS, and 
 | Resource | Value |
 |---|---|
 | Hypervisor | Whatever hosts the ZFS-backed storage (Hyper-V, Proxmox, ESXi, etc.) |
-| OS | Windows Server 2022 Standard (Desktop Experience) |
+| OS | Windows Server 2025 Standard (Desktop Experience) |
 | vCPU | 8 |
 | RAM | 16 GB |
 | System disk (C:) | 80 GB, dynamic |
@@ -25,8 +25,8 @@ System disk holds Windows + PowerShell + git. Data disk is dedicated to `S:\Shar
 
 ## Phase 0 — OS install and initial config
 
-1. Install Windows Server 2022 Standard (Desktop Experience)
-2. Set hostname: `ACME-DC01`
+1. Install Windows Server 2025 Standard (Desktop Experience)
+2. Set hostname: `panzura-sym01`
 3. Set timezone correctly (UTC is fine, or match your demo venue)
 4. Install all pending Windows Updates (reboot as needed)
 5. Set a static IP on the NIC (e.g. `10.10.10.10/24`)
@@ -52,6 +52,8 @@ Install-ADDSForest `
     -DomainNetbiosName 'ACME' `
     -DomainMode 'WinThreshold' `
     -ForestMode 'WinThreshold' `
+    # Note: on Windows Server 2025, the installer may raise these to 'Windows2025' —
+    # that is fine, the live domain runs at Windows2025Domain/Windows2025Forest.
     -InstallDns `
     -SafeModeAdministratorPassword (ConvertTo-SecureString 'DemoPass!2026' -AsPlainText -Force) `
     -Force `
@@ -175,7 +177,7 @@ Inbound:
 - 53/tcp/udp (DNS) — required if anything else queries the DC
 - 88/tcp/udp (Kerberos), 389/tcp (LDAP), 464/tcp (Kerberos password change), 636/tcp (LDAPS) — required for any AD-joined client
 
-If Symphony runs from another VM on the same isolated network, those ports need to be reachable from it to `ACME-DC01`.
+If Symphony runs from another VM on the same isolated network, those ports need to be reachable from it to `panzura-sym01`.
 
 ## Gotchas
 

@@ -8,7 +8,7 @@ You are the **builder**. Architecture and design decisions live in `docs/` and `
 
 ## What this project is
 
-A generator that produces a realistic, messy, enterprise-scale NAS dataset for demoing **Panzura Symphony**. Target: **10 million files** on a Windows Server 2022 VM (single box running AD DS + DNS + File Services for the fake `acme.local` domain), exposed via SMB from `S:\Share`.
+A generator that produces a realistic, messy, enterprise-scale NAS dataset for demoing **Panzura Symphony**. Target: **10 million files** on a Windows Server 2025 VM (single box running AD DS + DNS + File Services for the fake `acme.local` domain), exposed via SMB from `S:\Share`.
 
 Read `README.md` and `docs/00-overview.md` first. Always.
 

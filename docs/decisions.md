@@ -4,6 +4,32 @@ Running log of decisions made during design. Newest at top.
 
 ---
 
+## 2026-04-17 (round 6) — `Build-AcmeAD.ps1` implemented
+
+### D-034: Shared demo password is `Acme!Pass2026` (not `Acme!Demo2026`)
+First iteration used `Acme!Demo2026` which failed AD complexity rules for the `demo.admin` account: Windows rejects passwords containing substrings of the account's display name longer than 2 consecutive chars, and "Demo Admin" intersects "Demo" in the password. Changed to `Acme!Pass2026` — no overlap with any generated user name or sAMAccountName. Stored in `ad.password` in `main-config.json`. All generated accounts are enabled, `PasswordNeverExpires`, `CannotChangePassword`. They never log in.
+
+### D-033: Name pool lives in `config/name-pool.json`
+Separate JSON file with `firstNames` (~200) and `lastNames` (~200) arrays. Keeps the roster config-driven and lets anyone swap in a different pool without touching the script. Not checked against real people.
+
+### D-032: Role-group sizing is the sole source of truth for role-group memberships; no random sprinkle
+First draft layered an "1–3 additional role groups per user" random sprinkle on top of the seeded `roleGroupSizing` block. The sprinkle blew up project-group sizes (e.g. `GRP_ProjectApollo` sized to 25 got ~118 members). Removed the sprinkle — `ad.roleGroupSizing` is authoritative. Rule-based groups (`GRP_AllStaff`, `GRP_Managers`, `GRP_Executives`) are populated from user attributes, not sizing.
+
+### D-031: Title assignment uses pyramid (exponential) weighting, not uniform random
+First draft picked titles uniformly from each department's title pool, producing ~33% senior-title users and 142 "executives" for 356 active. Changed to exponential weighting: weight(i) = 2^(N-1-i) where i is the index in the pool (junior first). For a 6-title pool, the junior title is 32× more common than the most senior. Produces realistic pyramid — ~31 executives on a 356-user active pool.
+
+### D-030: Title pool lives in the script, not config
+Per-department title pools are baked into `Build-AcmeAD.ps1` as `$TitlePool` (a hashtable keyed by department). Not config-driven — titles are demo-flavor, not a tuning knob. Adjust only in the script.
+
+---
+
+## 2026-04-17 (round 5)
+
+### D-029: Live VM is Windows Server 2025, hostname `panzura-sym01`
+The actual lab VM is running Windows Server 2025 Standard (not 2022) and its hostname is `panzura-sym01` (not `ACME-DC01`). Domain/forest functional level is `Windows2025Domain`/`Windows2025Forest` (raised above the originally-specified `WinThreshold`/2016). All docs updated to match what's deployed. This has no functional impact on the dataset — `acme.local`, NetBIOS `ACME`, and the single-DC-all-roles topology are unchanged.
+
+---
+
 ## 2026-04-17 (round 4)
 
 ### D-028: `Build-AcmeAD.ps1` supports Populate and Remove modes
@@ -110,7 +136,7 @@ File generation is split into a single-threaded planning pass (emits `manifests/
 - Cost is small, ensures Symphony's file-type classification shows clean breakdown
 
 ### D-004: Single VM, all roles
-- Windows Server 2022 VM hosts AD DS + DNS + File Services
+- Windows Server 2025 VM hosts AD DS + DNS + File Services
 - Domain: `acme.local`, NetBIOS `ACME`
 - Single DC, no replication, no trusts
 

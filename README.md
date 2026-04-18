@@ -21,7 +21,7 @@ Symphony's three highest-value stories, tuned into the dataset on purpose:
 
 ## Stack
 
-- Windows Server 2022 VM (single box: AD DS + DNS + File Services)
+- Windows Server 2025 VM (single box: AD DS + DNS + File Services)
 - PowerShell 7+ for all generation (AD setup, file creation, ACL application, timestamps)
 - JSON config files drive every knob — no code changes needed to re-tune
 
@@ -52,7 +52,7 @@ symphony-demo-data/
 
 Full VM build steps and run procedure are documented in `docs/04-vm-provisioning.md`. High-level:
 
-1. Build a Windows Server 2022 VM (AD DS + DNS + File Services)
+1. Build a Windows Server 2025 VM (AD DS + DNS + File Services)
 2. Install PowerShell 7 and git
 3. Clone this repo to `C:\Projects\symphony-demo-data`
 4. Open Claude Code in the repo — `CLAUDE.md` loads automatically as standing instructions

@@ -10,8 +10,15 @@
   "ad": {
     "domain": "acme.local",
     "netbios": "ACME",
-    "functionalLevel": "Win2016",
+    "functionalLevel": "Win2025",
     "rootOU": "Acme",
+
+    "password": "Acme!Pass2026",
+    "adminAccount": {
+      "samAccountName": "demo.admin",
+      "displayName": "Demo Admin",
+      "domainAdmin": true
+    },
 
     "users": {
       "activeCount": 356,
@@ -41,6 +48,34 @@
       "createResourceGroups": true,
       "rolesPerUserMin": 1,
       "rolesPerUserMax": 3
+    },
+
+    "roleGroupSizing": {
+      "$comment": "How many users land in each role/cross-functional group. count=absolute, percent=of active users.",
+      "GRP_Contractors":       { "count": 20 },
+      "GRP_ProjectApollo":     { "count": 25, "crossDept": true },
+      "GRP_ProjectPhoenix":    { "count": 22, "crossDept": true },
+      "GRP_ProjectAtlas":      { "count": 18, "crossDept": true },
+      "GRP_AuditCommittee":    { "count": 6,  "departments": ["Finance", "Legal", "Executive"] },
+      "GRP_SecurityClearance": { "count": 12 },
+      "GRP_RemoteWorkers":     { "percent": 30 },
+      "GRP_Interns":           { "count": 8 },
+      "GRP_NewHires":          { "count": 15 },
+      "GRP_BoardAccess":       { "count": 3,  "departments": ["Executive"] },
+      "GRP_LegalHold":         { "count": 10 }
+    },
+
+    "groupNesting": {
+      "$comment": "Department-level groups nested into resource-level groups (AGDLP).",
+      "GRP_Finance":       ["GRP_FinanceReadWrite", "GRP_FinanceReadOnly"],
+      "GRP_Legal":         ["GRP_LegalContractsRW", "GRP_LegalContractsRO"],
+      "GRP_Engineering":   ["GRP_EngineeringBuildsRW"],
+      "GRP_Marketing":     ["GRP_MarketingAssetsRW"],
+      "GRP_Executive":     ["GRP_ExecutiveConfidential", "GRP_BoardAccess"],
+      "GRP_HR":            ["GRP_HRPayroll", "GRP_HREmployeeRecords"],
+      "GRP_IT":            ["GRP_ITAdmins"],
+      "GRP_AllStaff":      ["GRP_PublicRead"],
+      "GRP_AuditCommittee":["GRP_AuditReadOnly"]
     }
   },
 
