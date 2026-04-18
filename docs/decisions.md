@@ -4,6 +4,13 @@ Running log of decisions made during design. Newest at top.
 
 ---
 
+## 2026-04-17 (round 4)
+
+### D-028: `Build-AcmeAD.ps1` supports Populate and Remove modes
+Single script, `-Mode Populate` (default) or `-Mode Remove`. Remove uses `ad-manifest.json` as the authoritative delete list (surgical), with a pattern-based fallback if the manifest is lost. Requires `-Confirm` or `-Force`. Never touches built-in AD objects. Does not demote the DC. Manifest is archived (renamed with timestamp), not deleted, for audit.
+
+---
+
 ## 2026-04-17 (round 3)
 
 ### D-027: Token pool is synthetic, not real

@@ -165,7 +165,7 @@ The AD build script is a single pass, idempotent (check-before-create so re-runs
 1. Install AD DS + DNS + File Services Windows features
 2. Promote VM to domain controller (`Install-ADDSForest`)
 3. Reboot
-4. Run `Build-AcmeAD.ps1`:
+4. Run `Build-AcmeAD.ps1` in `-Mode Populate` (default):
    - Create OU tree
    - Create all groups (empty)
    - Create all active users, assign to dept OUs
@@ -176,6 +176,36 @@ The AD build script is a single pass, idempotent (check-before-create so re-runs
    - Nest department groups into resource groups
    - Set user attributes (title, manager, department, employeeID)
 5. Emit `manifests/ad-manifest.json`
+
+## Script modes
+
+`Build-AcmeAD.ps1` supports two modes via a `-Mode` parameter:
+
+### `-Mode Populate` (default)
+The full create/populate flow described above. Idempotent — safe to re-run.
+
+### `-Mode Remove`
+Full teardown of everything the script created. Used to wipe the fake company cleanly so `Populate` can run again from a clean state. Built-in AD objects (Administrator, Domain Admins, Domain Users, etc.) are never touched.
+
+**Safety requirements:**
+- Requires `-Confirm` or `-Force` switch — never run destructive operations silently
+- If `manifests/ad-manifest.json` exists, uses it as the authoritative list of what to delete. This is the primary path — surgical, only touches what we created.
+- If no manifest exists, falls back to pattern-based removal: any user/group with `sAMAccountName` matching our conventions (`GRP_*` groups, `svc_*` service accounts, users inside `OU=Acme,DC=acme,DC=local`), and removes the `OU=Acme` OU tree itself. This handles the case where someone lost the manifest.
+- Logs every deletion to `manifests/logs/ad-teardown.log`
+- Prints a summary before confirming (e.g. "Will delete: 400 users, 40 groups, 10 service accounts, 17 OUs")
+
+**Order of operations for Remove:**
+1. Pre-flight: read manifest, compute delete list, show summary, require confirmation
+2. Remove users (active, disabled, service accounts, any surviving terminated users)
+3. Remove groups (resource groups first, then role groups, then department groups — reverse of creation order to avoid membership dependency errors)
+4. Remove OUs (deepest first, then parents)
+5. Move `manifests/ad-manifest.json` to `manifests/ad-manifest.json.removed-YYYYMMDD-HHMMSS` for audit, don't delete outright
+6. Emit `manifests/logs/ad-teardown-summary.json`
+
+**What Remove does NOT do:**
+- Does not demote the DC or remove the domain itself (that's a hypervisor-snapshot-revert operation)
+- Does not touch anything in built-in containers
+- Does not delete `S:\Share` contents (separate concern, separate script if needed)
 
 ### ad-manifest.json
 

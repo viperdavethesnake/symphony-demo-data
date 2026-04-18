@@ -8,7 +8,7 @@ All PowerShell 7+. All live in `scripts/`. All take `-ConfigPath` pointing to `c
 
 | Script | Phase | Depends on | Produces |
 |---|---|---|---|
-| `Build-AcmeAD.ps1` | AD setup | config | `manifests/ad-manifest.json` |
+| `Build-AcmeAD.ps1` | AD setup | config | `manifests/ad-manifest.json` (Populate) or archived manifest (Remove) |
 | `Plan-AcmeData.ps1` | 2a + 2b | config, ad-manifest, filetypes, folder-templates, token-pool | `manifests/folder-manifest.json`, `manifests/file-manifest.jsonl` |
 | `Build-AcmeFolders.ps1` | 2c | folder-manifest | folders on disk under `S:\Share` |
 | `Build-AcmeFiles.ps1` | 2d | file-manifest | files on disk (empty-at-planned-size) |
