@@ -1,0 +1,146 @@
+{
+  "$comment": "Dev/test overrides of main-config.json. Keep in sync with main-config.json structurally — only scale.* fields should differ. rootPath is repo-relative; scripts resolve against repo root when not absolute.",
+
+  "meta": {
+    "version": "0.1.0",
+    "seed": 42,
+    "tenantName": "Acme Corp"
+  },
+
+  "ad": {
+    "domain": "acme.local",
+    "netbios": "ACME",
+    "functionalLevel": "Win2025",
+    "rootOU": "Acme",
+
+    "password": "Acme!Pass2026",
+    "adminAccount": {
+      "samAccountName": "demo.admin",
+      "displayName": "Demo Admin",
+      "domainAdmin": true
+    },
+
+    "users": {
+      "activeCount": 356,
+      "disabledCount": 32,
+      "terminatedCount": 12,
+      "serviceAccountCount": 10
+    },
+
+    "departmentDistribution": {
+      "Engineering": 90,
+      "Sales": 60,
+      "Operations": 45,
+      "Marketing": 35,
+      "CustomerSuccess": 35,
+      "Product": 25,
+      "Finance": 20,
+      "IT": 18,
+      "HR": 12,
+      "Legal": 8,
+      "Facilities": 5,
+      "Executive": 3
+    },
+
+    "groups": {
+      "createDepartmentGroups": true,
+      "createRoleGroups": true,
+      "createResourceGroups": true,
+      "rolesPerUserMin": 1,
+      "rolesPerUserMax": 3
+    },
+
+    "roleGroupSizing": {
+      "GRP_Contractors":       { "count": 20 },
+      "GRP_ProjectApollo":     { "count": 25, "crossDept": true },
+      "GRP_ProjectPhoenix":    { "count": 22, "crossDept": true },
+      "GRP_ProjectAtlas":      { "count": 18, "crossDept": true },
+      "GRP_AuditCommittee":    { "count": 6,  "departments": ["Finance", "Legal", "Executive"] },
+      "GRP_SecurityClearance": { "count": 12 },
+      "GRP_RemoteWorkers":     { "percent": 30 },
+      "GRP_Interns":           { "count": 8 },
+      "GRP_NewHires":          { "count": 15 },
+      "GRP_BoardAccess":       { "count": 3,  "departments": ["Executive"] },
+      "GRP_LegalHold":         { "count": 10 }
+    },
+
+    "groupNesting": {
+      "GRP_Finance":       ["GRP_FinanceReadWrite", "GRP_FinanceReadOnly"],
+      "GRP_Legal":         ["GRP_LegalContractsRW", "GRP_LegalContractsRO"],
+      "GRP_Engineering":   ["GRP_EngineeringBuildsRW"],
+      "GRP_Marketing":     ["GRP_MarketingAssetsRW"],
+      "GRP_Executive":     ["GRP_ExecutiveConfidential", "GRP_BoardAccess"],
+      "GRP_HR":            ["GRP_HRPayroll", "GRP_HREmployeeRecords"],
+      "GRP_IT":            ["GRP_ITAdmins"],
+      "GRP_AllStaff":      ["GRP_PublicRead"],
+      "GRP_AuditCommittee":["GRP_AuditReadOnly"]
+    }
+  },
+
+  "scale": {
+    "$comment": "DEV OVERRIDES: rootPath is repo-relative (test-data/Share), totalFiles shrunk to 2000 for fast iteration.",
+    "totalFiles": 2000,
+    "rootPath": "test-data\\Share",
+    "parallelThreads": 4,
+    "batchSize": 250
+  },
+
+  "folders": {
+    "departmentShares": [
+      "Sales", "Marketing", "Engineering", "Finance", "Legal",
+      "HR", "IT", "Executive", "Operations", "CustomerSuccess",
+      "Product", "Facilities"
+    ],
+    "commonShares": ["Public", "Scratch", "Archive", "Projects"],
+    "minDepth": 3,
+    "maxDepth": 6,
+    "deepFolderPercent": 2,
+    "deepFolderMaxDepth": 9
+  },
+
+  "ageDistribution": {
+    "last30days": 5,
+    "days30to365": 7,
+    "years1to2": 8,
+    "years2to5": 30,
+    "years5to10": 30,
+    "years10to15": 20
+  },
+
+  "timeConsistency": {
+    "atimeRecentlyTouchedPercent": 10
+  },
+
+  "fileTypeMix": {
+    "office": 60,
+    "images": 15,
+    "archives": 7,
+    "media": 4,
+    "installers": 3,
+    "cadCode": 3,
+    "textLogs": 3,
+    "junk": 5
+  },
+
+  "duplicates": {
+    "exactDuplicatePercent": 8,
+    "versionDriftPercent": 3,
+    "versionDriftClusterSizeMin": 3,
+    "versionDriftClusterSizeMax": 6
+  },
+
+  "acl": {
+    "oversharePercent": 5,
+    "orphanedSidPercent": 3,
+    "brokenInheritancePercent": 4,
+    "directUserAcePercent": 6,
+    "ownerMismatchPercent": 10,
+    "conflictingAcePercent": 1
+  },
+
+  "spaceSkew": {
+    "hoarderUserPercent": 10,
+    "hoarderBytesShare": 60,
+    "serviceAccountDominantBytesShare": 25
+  }
+}

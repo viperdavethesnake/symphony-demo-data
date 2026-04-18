@@ -4,6 +4,41 @@ Running log of decisions made during design. Newest at top.
 
 ---
 
+## 2026-04-17 (round 8) — remaining pipeline scripts implemented
+
+### D-043: Master orchestrator shells out to `pwsh -File` per phase (not dot-sourcing)
+`Build-AcmeData.ps1` invokes each phase script as `& pwsh -NoProfile -File <script>`. Each phase gets its own PowerShell process, isolating `$ErrorActionPreference`, loaded Add-Type assemblies, and module imports. Phase crashes surface as non-zero `$LASTEXITCODE` without polluting the orchestrator's session. Cost is ~0.5s per phase for process spawn — negligible against any real phase (plan: minutes; files: 10s of minutes).
+
+### D-042: "Ex-admin" owner variant is approximated by random active user
+Spec (`docs/03-acl-design.md` pattern 5) calls for an "ex-admin" owner variant — "someone who used to be an admin but is now a regular user." The AD manifest has no `wasAdmin` flag and adding one would require re-running `Build-AcmeAD.ps1`. For v1 we approximate by picking a random active user for that variant — Symphony's ACL analysis sees the mismatched-owner pattern either way. Open question 2 in the ACL spec is flagged as deferred; revisit if demo storytelling needs it.
+
+### D-041: File owner-setting uses P/Invoke `SetNamedSecurityInfo`, not managed ACL round-trip
+`Set-AcmeOwners.ps1` sets NTFS owner via P/Invoke with `OWNER_SECURITY_INFORMATION` only, bypassing the managed DACL read/modify/write cycle. Measured 9,975 files/sec in dev vs. expected ~3–5k for the managed round-trip. Also enables `SeRestorePrivilege` + `SeTakeOwnershipPrivilege` so setting owner to a foreign SID (terminated users, service accounts) succeeds. Managed fallback was considered and rejected on performance grounds.
+
+### D-040: `Remove-AcmeOrphans.ps1` is opt-in via `-RunOrphans` in the orchestrator
+The master script skips phase 2h (orphan pass) by default. `Build-AcmeData.ps1 -RunOrphans` is required to actually delete terminated users from AD. Reason: the orphan pass is irreversible without an AD snapshot and should not run in a rehearsal or partial-resume scenario unless explicitly requested. When opted in, the switch also passes `-Force` to suppress the interactive prompt.
+
+### D-039: ACL APIs use `[System.IO.FileSystemAclExtensions]`, not `[System.IO.Directory]::SetAccessControl`
+In PowerShell 7 / .NET 6+, the static `[System.IO.Directory]::SetAccessControl(path, security)` method was removed; same for `FileInfo.SetAccessControl` and `GetAccessControl`. The working equivalents are the extension methods on `FileSystemAclExtensions` that take a `DirectoryInfo` / `FileInfo` argument. Set-AcmeACLs.ps1 uses these throughout, which is a real incompatibility with older PS 5.1-era snippets in docs and product forums.
+
+---
+
+## 2026-04-17 (round 7) — `Plan-AcmeData.ps1` implemented
+
+### D-038: Dev overrides live in a full-copy `main-config.dev.json`, not a merge overlay
+A separate `config/main-config.dev.json` duplicates the full shape of `main-config.json`, overriding only `scale.rootPath` (repo-relative `test-data\Share`), `scale.totalFiles` (2000), `scale.parallelThreads`, and `scale.batchSize`. Scripts still take a single `-ConfigPath` param — no merge helper. Tradeoff: structural drift between main and dev is possible, but a merge/overlay loader was judged more complex than the benefit for a dev-only convenience. Flagged in the file's `$comment` field so the human keeps the two in sync.
+
+### D-037: Relative `scale.rootPath` resolves against repo root
+If `scale.rootPath` is not absolute, scripts resolve it via `Join-Path $RepoRoot $rootPath`. This lets the dev config reference `test-data\Share` portably across machines without hardcoding a developer home directory. Prod config keeps `S:\Share` absolute, matching the lab's mapped data volume.
+
+### D-036: Time anchor for planner is `ad-manifest.meta.generatedAtUtc`, not wall-clock
+The planner freezes "now" to the `generatedAtUtc` field emitted by `Build-AcmeAD.ps1` so that running the planner twice against the same inputs produces bit-for-bit identical `file-manifest.jsonl`. Using wall-clock `Get-Date` broke determinism even within the same day due to sub-second drift propagating through age-bucket sampling. Wall-clock is used only as a fallback (with a WARN log) if the ad-manifest predates this field. Verified: two back-to-back dev runs produce byte-identical file-manifests.
+
+### D-035: Planning is single-threaded by design; execution phases parallelize
+`Plan-AcmeData.ps1` does all sampling in a single-threaded pass per `docs/02-file-generation.md`'s "plan everything, then execute dumbly in parallel" philosophy. Decisions (ext, size, owner, timestamps, dup/drift groups) require a coherent global view — partitioning across runspaces would complicate seeding and the dup pass (which picks sources globally). Trade-off accepted: planner at 10M scale is projected 5–12 min (extrapolated from dev run at ~200 files/sec); that's a fraction of the execution phases it feeds.
+
+---
+
 ## 2026-04-17 (round 6) — `Build-AcmeAD.ps1` implemented
 
 ### D-034: Shared demo password is `Acme!Pass2026` (not `Acme!Demo2026`)

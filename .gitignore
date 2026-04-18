@@ -1,5 +1,6 @@
 # Generated artifacts
 manifests/
+test-data/
 *.log
 *.tmp
 run-output/
