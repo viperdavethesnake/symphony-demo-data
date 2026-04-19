@@ -6,12 +6,8 @@
 .DESCRIPTION
     Runs the full pipeline in order:
         ad      Build-AcmeAD.ps1       (only if ad-manifest.json missing)
-        plan    Plan-AcmeData.ps1
-        2c      Build-AcmeFolders.ps1
-        2d      Build-AcmeFiles.ps1
-        2e      Set-AcmeTimestamps.ps1
-        2f      Set-AcmeOwners.ps1
-        2g      Set-AcmeACLs.ps1
+        share   Build-AcmeShare.ps1    (folders + files + sparse + timestamps + owners in one streaming pass; see docs/06-streaming-rewrite.md)
+        2g      Set-AcmeACLs.ps1       (reads folder-manifest.json emitted by share)
         2h      Remove-AcmeOrphans.ps1 (only with -RunOrphans)
         verify  Test-AcmeData.ps1
 
@@ -21,13 +17,12 @@
 .PARAMETER ConfigPath
     Path to config/main-config(.dev).json.
 .PARAMETER SkipPhase
-    Array of phase ids to skip (e.g. -SkipPhase 'ad','plan','2c','2d').
+    Array of phase ids to skip (e.g. -SkipPhase 'ad','share').
 .PARAMETER RunOrphans
     Opt-in switch to run Remove-AcmeOrphans.ps1. Off by default since it
     mutates live AD.
 .PARAMETER DryRun
-    Run only the planning phases (ad + plan) — no disk writes beyond
-    manifests/.
+    Run only the ad phase — no share/ACL/verify work.
 #>
 [CmdletBinding()]
 param(
@@ -60,19 +55,15 @@ function Write-Log {
 
 $phases = @(
     @{ id='ad';     script='Build-AcmeAD.ps1';       skipIf={ Test-Path (Join-Path $ManifestDir 'ad-manifest.json') } }
-    @{ id='plan';   script='Plan-AcmeData.ps1' }
-    @{ id='2c';     script='Build-AcmeFolders.ps1' }
-    @{ id='2d';     script='Build-AcmeFiles.ps1' }
-    @{ id='2e';     script='Set-AcmeTimestamps.ps1' }
-    @{ id='2f';     script='Set-AcmeOwners.ps1' }
+    @{ id='share';  script='Build-AcmeShare.ps1' }
     @{ id='2g';     script='Set-AcmeACLs.ps1' }
     @{ id='2h';     script='Remove-AcmeOrphans.ps1'; optIn=$true }
     @{ id='verify'; script='Test-AcmeData.ps1' }
 )
 
 if ($DryRun) {
-    Write-Log "DryRun: limiting to ad + plan phases"
-    $phases = $phases | Where-Object { $_.id -in @('ad','plan') }
+    Write-Log "DryRun: limiting to ad phase"
+    $phases = $phases | Where-Object { $_.id -in @('ad') }
 }
 
 Write-Log "Build-AcmeData starting — config=$ConfigPath  skip=$($SkipPhase -join ',')  runOrphans=$RunOrphans  dryRun=$DryRun"

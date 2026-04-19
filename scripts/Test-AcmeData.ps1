@@ -1,28 +1,25 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-    Verifies the generated dataset matches the manifests. Produces
-    manifests/logs/verification.json — the "ground truth" report the
-    Symphony demo owner can wave at the product during setup.
+    Verifies the generated dataset on disk. Produces manifests/logs/verification.json.
 
 .DESCRIPTION
-    Runs four checks:
-        1. Folder existence — every relPath in folder-manifest exists on disk
-        2. File existence / size / magic bytes — sampled subset of file-manifest
-        3. Timestamp match (btime/mtime/atime) — sampled subset, ±1 second tolerance
-        4. Owner SID match — sampled subset
-        5. ACL sanity — every folder has at least one ACE; summary of
-           well-known-SID counts
-        6. Distribution checks — age-bucket, ext-mix, dup-group counts vs
-           config targets
+    Post-streaming-rewrite (see docs/06-streaming-rewrite.md), there is no
+    file-manifest.jsonl to diff against — file existence, magic bytes,
+    timestamps, and owners are validated directly from disk.
 
-    Sample size is from -SampleSize (default 500) or the whole manifest if
-    smaller. The verification is statistical at scale, exact on dev.
+    Checks:
+        1. Folder existence        — every relPath in folder-manifest exists on disk.
+        2-4. Disk sample           — reservoir-sampled ~500 files (from Directory.EnumerateFiles);
+                                     for each: valid magic bytes, btime ≤ mtime ≤ atime, non-null owner SID.
+        5. ACL sanity              — sampled folders; count ACEs, note Everyone / AuthenticatedUsers SIDs.
+        6. Distributions           — total files per extension (exact, from the single streaming pass)
+                                     and per age bucket (from the 500-file sample), vs config targets.
 
 .PARAMETER ConfigPath
     Path to config/main-config(.dev).json.
 .PARAMETER SampleSize
-    Number of file records to sample for per-file checks. Default 500.
+    Number of disk files to sample for per-file checks + age histogram. Default 500.
 #>
 [CmdletBinding()]
 param(
@@ -33,18 +30,15 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$RepoRoot    = Split-Path -Parent $PSScriptRoot
-$ManifestDir = Join-Path $RepoRoot 'manifests'
-$LogDir      = Join-Path $ManifestDir 'logs'
+$RepoRoot       = Split-Path -Parent $PSScriptRoot
+$ManifestDir    = Join-Path $RepoRoot 'manifests'
+$LogDir         = Join-Path $ManifestDir 'logs'
 $FolderManifest = Join-Path $ManifestDir 'folder-manifest.json'
-$FileManifest   = Join-Path $ManifestDir 'file-manifest.jsonl'
-foreach ($p in @($FolderManifest, $FileManifest)) {
-    if (-not (Test-Path $p)) { throw "missing manifest: $p" }
-}
+if (-not (Test-Path $FolderManifest)) { throw "missing manifest: $FolderManifest" }
 if (-not (Test-Path $LogDir)) { New-Item -Path $LogDir -ItemType Directory | Out-Null }
 
-$RunStamp = '{0:yyyyMMdd-HHmmss}' -f (Get-Date)
-$LogPath = Join-Path $LogDir ("verify-$RunStamp.log")
+$RunStamp  = '{0:yyyyMMdd-HHmmss}' -f (Get-Date)
+$LogPath   = Join-Path $LogDir ("verify-$RunStamp.log")
 $VerifyOut = Join-Path $LogDir 'verification.json'
 
 function Write-Log {
@@ -60,32 +54,58 @@ function Import-JsonFile {
     return Get-Content -Path $Path -Raw | ConvertFrom-Json
 }
 
-Write-Log "Test-AcmeData starting — sampleSize=$SampleSize"
-$cfg = Import-JsonFile $ConfigPath
-$folderManifest = Import-JsonFile $FolderManifest
-$folders = $folderManifest.folders
-$fileLines = [System.IO.File]::ReadAllLines($FileManifest)
-$totalRecords = $fileLines.Length
-Write-Log "folder records=$($folders.Count)  file records=$totalRecords"
-
-# Filetypes for magic-byte verification
-$filetypes = Import-JsonFile (Join-Path (Split-Path -Parent (Resolve-Path $ConfigPath)) 'filetypes.json')
-$extHeader = @{}
-foreach ($cat in $filetypes.PSObject.Properties) {
-    if ($cat.Name.StartsWith('$')) { continue }
-    foreach ($e in $cat.Value.PSObject.Properties) {
-        if ($e.Name.StartsWith('$')) { continue }
-        $extHeader[$e.Name] = [string]$e.Value.header
-    }
-}
-
 function Convert-HexToBytes {
     param([string]$Hex)
-    if ([string]::IsNullOrEmpty($Hex)) { return [byte[]]@() }
+    if ([string]::IsNullOrEmpty($Hex)) { return ,([byte[]]@()) }
     $n = [int]($Hex.Length / 2)
     $b = New-Object 'byte[]' $n
     for ($i = 0; $i -lt $n; $i++) { $b[$i] = [Convert]::ToByte($Hex.Substring($i*2,2), 16) }
     return ,$b
+}
+
+Write-Log "Test-AcmeData starting — sampleSize=$SampleSize"
+$cfg            = Import-JsonFile $ConfigPath
+$folderManifest = Import-JsonFile $FolderManifest
+$folders        = $folderManifest.folders
+$rootPath       = $folderManifest.meta.rootPath
+Write-Log "folder records=$($folders.Count)  rootPath=$rootPath"
+
+# Extension → header + category map
+$filetypes = Import-JsonFile (Join-Path (Split-Path -Parent (Resolve-Path $ConfigPath)) 'filetypes.json')
+$extHeader = @{}
+$extCategory = @{}
+foreach ($cat in $filetypes.PSObject.Properties) {
+    if ($cat.Name.StartsWith('$')) { continue }
+    foreach ($e in $cat.Value.PSObject.Properties) {
+        if ($e.Name.StartsWith('$')) { continue }
+        $extHeader[$e.Name]   = [string]$e.Value.header
+        $extCategory[$e.Name] = $cat.Name
+    }
+}
+
+# Terminated SIDs (for distribution check)
+$termSids = @{}
+if (Test-Path (Join-Path $ManifestDir 'ad-manifest.json')) {
+    $ad = Import-JsonFile (Join-Path $ManifestDir 'ad-manifest.json')
+    foreach ($u in ($ad.users | Where-Object status -eq 'terminated')) { $termSids[$u.sid] = $true }
+}
+
+# Time anchor for age bucketing
+if ($folderManifest.meta.PSObject.Properties['timeAnchorUtc']) {
+    $nowUtc = ([datetime]$folderManifest.meta.timeAnchorUtc).ToUniversalTime()
+} else {
+    $nowUtc = (Get-Date).ToUniversalTime()
+}
+
+function Get-AgeBucket {
+    param([datetime]$MtimeUtc)
+    $days = ($nowUtc - $MtimeUtc).TotalDays
+    if ($days -lt 30)   { return 'last30days' }
+    if ($days -lt 365)  { return 'days30to365' }
+    if ($days -lt 730)  { return 'years1to2' }
+    if ($days -lt 1825) { return 'years2to5' }
+    if ($days -lt 3650) { return 'years5to10' }
+    return 'years10to15'
 }
 
 # ---------------------------------------------------------------------------
@@ -93,86 +113,127 @@ function Convert-HexToBytes {
 # ---------------------------------------------------------------------------
 Write-Log "Check 1: folder existence"
 $folderMissing = 0
+$folderExpected = 0
 foreach ($f in $folders) {
     if ($f.relPath -eq '') { continue }
+    $folderExpected++
     if (-not (Test-Path -LiteralPath $f.path -PathType Container)) { $folderMissing++ }
 }
-Write-Log ("folders missing on disk: {0} / {1}" -f $folderMissing, ($folders.Count - 1))
+Write-Log ("folders missing on disk: {0} / {1}" -f $folderMissing, $folderExpected)
 
 # ---------------------------------------------------------------------------
-# (2-4) Sample per-file checks
+# (2-4 + 6a) Single streaming pass over disk:
+#   - reservoir-sample SampleSize paths
+#   - count total files + per-extension totals (exact)
 # ---------------------------------------------------------------------------
-Write-Log "Checks 2-4: sampling files"
+Write-Log "Checks 2-4 + distribution: streaming disk enumeration"
+$swScan = [System.Diagnostics.Stopwatch]::StartNew()
 $seed = [int]$cfg.meta.seed
-$rng = [System.Random]::new($seed -bxor 0x7e57)
-$n = [Math]::Min($SampleSize, $totalRecords)
-$sampleIdx = @()
-$seen = @{}
-while ($sampleIdx.Count -lt $n) {
-    $i = $rng.Next(0, $totalRecords)
-    if (-not $seen.ContainsKey($i)) { $seen[$i] = $true; $sampleIdx += $i }
-}
+$rng  = [System.Random]::new($seed -bxor 0x7e57)
 
-$fileMissing = 0; $sizeMismatch = 0; $headerMismatch = 0
-$tsMismatch = 0; $ownerMismatch = 0
-$checkedHeaders = 0
+$reservoir = New-Object 'string[]' $SampleSize
+$scanned = 0
+$extCounts = @{}
 
-foreach ($idx in $sampleIdx) {
-    $rec = $fileLines[$idx] | ConvertFrom-Json
-    if (-not (Test-Path -LiteralPath $rec.path -PathType Leaf)) { $fileMissing++; continue }
-    $fi = [System.IO.FileInfo]::new($rec.path)
+$enumOpts = New-Object System.IO.EnumerationOptions
+$enumOpts.RecurseSubdirectories = $true
+$enumOpts.IgnoreInaccessible    = $true
 
-    # Size (accept the min-clamp applied at write time)
-    $headerHex = if ($extHeader.ContainsKey($rec.ext)) { $extHeader[$rec.ext] } else { '' }
-    $headerLen = [int]($headerHex.Length / 2)
-    $expectedSize = [int64]$rec.size
-    if ($expectedSize -lt $headerLen) { $expectedSize = $headerLen }
-    if ($fi.Length -ne $expectedSize) { $sizeMismatch++ }
+foreach ($path in [System.IO.Directory]::EnumerateFiles($rootPath, '*', $enumOpts)) {
+    $ext = [System.IO.Path]::GetExtension($path)
+    if ($ext.StartsWith('.')) { $ext = $ext.Substring(1).ToLowerInvariant() }
+    if (-not $extCounts.ContainsKey($ext)) { $extCounts[$ext] = 0 }
+    $extCounts[$ext]++
 
-    # Timestamps ±1 second
-    $tsOk = $true
-    $rb = ([datetime]$rec.btime).ToUniversalTime()
-    $rm = ([datetime]$rec.mtime).ToUniversalTime()
-    $ra = ([datetime]$rec.atime).ToUniversalTime()
-    if ([Math]::Abs(($fi.CreationTimeUtc   - $rb).TotalSeconds) -gt 1) { $tsOk = $false }
-    if ([Math]::Abs(($fi.LastWriteTimeUtc  - $rm).TotalSeconds) -gt 1) { $tsOk = $false }
-    if ([Math]::Abs(($fi.LastAccessTimeUtc - $ra).TotalSeconds) -gt 1) { $tsOk = $false }
-    if (-not $tsOk) { $tsMismatch++ }
-
-    # Magic bytes
-    if ($headerLen -gt 0) {
-        $checkedHeaders++
-        $expected = Convert-HexToBytes $headerHex
-        $read = New-Object 'byte[]' $headerLen
-        $fs = [System.IO.File]::OpenRead($rec.path)
-        try { [void]$fs.Read($read, 0, $headerLen) } finally { $fs.Dispose() }
-        for ($b = 0; $b -lt $headerLen; $b++) {
-            if ($read[$b] -ne $expected[$b]) { $headerMismatch++; break }
-        }
+    if ($scanned -lt $SampleSize) {
+        $reservoir[$scanned] = $path
+    } else {
+        $j = $rng.Next(0, $scanned + 1)
+        if ($j -lt $SampleSize) { $reservoir[$j] = $path }
     }
-
-    # Owner (pure managed via GetAccessControl extension)
-    try {
-        $sec = [System.IO.FileSystemAclExtensions]::GetAccessControl($fi)
-        $ownerStr = ($sec.GetOwner([System.Security.Principal.SecurityIdentifier])).Value
-        if ($ownerStr -ne $rec.ownerSid) { $ownerMismatch++ }
-    } catch { $ownerMismatch++ }
+    $scanned++
 }
-
-Write-Log ("sample ({0}): missing={1} sizeDiff={2} headerDiff={3}/{4} tsDiff={5} ownerDiff={6}" -f `
-    $n, $fileMissing, $sizeMismatch, $headerMismatch, $checkedHeaders, $tsMismatch, $ownerMismatch)
+$swScan.Stop()
+$totalOnDisk = $scanned
+$sampleCount = [Math]::Min($SampleSize, $totalOnDisk)
+Write-Log ("scanned {0:N0} files in {1:N1}s" -f $totalOnDisk, $swScan.Elapsed.TotalSeconds)
 
 # ---------------------------------------------------------------------------
-# (5) ACL sanity — sample folders, count ACEs, note well-known SIDs
+# (2-4) Per-sample validation
+# ---------------------------------------------------------------------------
+$missing = 0
+$headerMismatch = 0; $headersChecked = 0
+$timestampInconsistent = 0
+$ownerNull = 0
+$termOwnerSample = 0
+$ageCountsSample = @{ last30days=0; days30to365=0; years1to2=0; years2to5=0; years5to10=0; years10to15=0 }
+
+for ($i = 0; $i -lt $sampleCount; $i++) {
+    $p = $reservoir[$i]
+    if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { $missing++; continue }
+    try {
+        $fi = [System.IO.FileInfo]::new($p)
+
+        # Magic bytes (if the ext has a defined header)
+        $ext = $fi.Extension.TrimStart('.').ToLowerInvariant()
+        $headerHex = if ($extHeader.ContainsKey($ext)) { $extHeader[$ext] } else { '' }
+        $headerLen = [int]($headerHex.Length / 2)
+        if ($headerLen -gt 0) {
+            $headersChecked++
+            $expected = Convert-HexToBytes $headerHex
+            $read = New-Object 'byte[]' $headerLen
+            $fs = [System.IO.File]::OpenRead($p)
+            try {
+                $got = $fs.Read($read, 0, $headerLen)
+            } finally { $fs.Dispose() }
+            $bad = $false
+            if ($got -lt $headerLen) { $bad = $true }
+            else {
+                for ($b = 0; $b -lt $headerLen; $b++) {
+                    if ($read[$b] -ne $expected[$b]) { $bad = $true; break }
+                }
+            }
+            if ($bad) { $headerMismatch++ }
+        }
+
+        # Timestamp consistency: btime ≤ mtime ≤ atime (±1s tolerance)
+        $bt = $fi.CreationTimeUtc
+        $mt = $fi.LastWriteTimeUtc
+        $at = $fi.LastAccessTimeUtc
+        if ( ($bt - $mt).TotalSeconds -gt 1 -or ($mt - $at).TotalSeconds -gt 1 ) {
+            $timestampInconsistent++
+        }
+
+        # Age bucket from mtime (for distribution sample)
+        $bucket = Get-AgeBucket -MtimeUtc $mt
+        $ageCountsSample[$bucket]++
+
+        # Owner — must be non-null
+        try {
+            $sec = [System.IO.FileSystemAclExtensions]::GetAccessControl($fi)
+            $ownerStr = ($sec.GetOwner([System.Security.Principal.SecurityIdentifier])).Value
+            if (-not $ownerStr) { $ownerNull++ }
+            elseif ($termSids.ContainsKey($ownerStr)) { $termOwnerSample++ }
+        } catch {
+            $ownerNull++
+        }
+    } catch {
+        $missing++
+    }
+}
+Write-Log ("sample ({0}): missing={1} magicBad={2}/{3} tsBad={4} ownerNull={5} termOwner={6}" -f `
+    $sampleCount, $missing, $headerMismatch, $headersChecked, $timestampInconsistent, $ownerNull, $termOwnerSample)
+
+# ---------------------------------------------------------------------------
+# (5) ACL sanity — sampled folders from the manifest
 # ---------------------------------------------------------------------------
 Write-Log "Check 5: folder ACL sanity"
-$aclSample = [Math]::Min(200, $folders.Count - 1)
-$fRng = [System.Random]::new($seed -bxor 0xacc1)
 $foldersOnly = @($folders | Where-Object { $_.relPath -ne '' })
-$aclIdxs = @()
-$seen = @{}
+$aclSample = [Math]::Min(200, $foldersOnly.Count)
+$aclRng = [System.Random]::new($seed -bxor 0xacc1)
+$seen = @{}; $aclIdxs = @()
 while ($aclIdxs.Count -lt $aclSample) {
-    $i = $fRng.Next(0, $foldersOnly.Count)
+    $i = $aclRng.Next(0, $foldersOnly.Count)
     if (-not $seen.ContainsKey($i)) { $seen[$i] = $true; $aclIdxs += $i }
 }
 $noAcl = 0; $totalAces = 0; $withEveryone = 0; $withAuthUsers = 0
@@ -185,76 +246,75 @@ foreach ($i in $aclIdxs) {
         if ($rules.Count -eq 0) { $noAcl++; continue }
         $totalAces += $rules.Count
         foreach ($r in $rules) {
-            if ($r.IdentityReference.Value -eq 'S-1-1-0') { $withEveryone++ }
+            if ($r.IdentityReference.Value -eq 'S-1-1-0')  { $withEveryone++ }
             if ($r.IdentityReference.Value -eq 'S-1-5-11') { $withAuthUsers++ }
         }
-    } catch {
-        $noAcl++
-    }
+    } catch { $noAcl++ }
 }
 Write-Log ("acl sample ({0}): noAcl={1} avgAces={2:N1} withEveryone={3} withAuthUsers={4}" -f `
     $aclSample, $noAcl, ($totalAces / [Math]::Max(1, ($aclSample - $noAcl))), $withEveryone, $withAuthUsers)
 
 # ---------------------------------------------------------------------------
-# (6) Distribution checks vs config targets
+# (6) Distributions vs config
 # ---------------------------------------------------------------------------
-Write-Log "Check 6: distribution vs config"
-# These read the manifest, not the disk — verifying the plan was faithful.
-$ageBuckets = @('last30days','days30to365','years1to2','years2to5','years5to10','years10to15')
-$ageCounts = @{}; foreach ($b in $ageBuckets) { $ageCounts[$b] = 0 }
-$extCounts = @{}
-$dupGroups = @{}
-$driftGroups = @{}
-$termSids = @{}
-if (Test-Path (Join-Path $ManifestDir 'ad-manifest.json')) {
-    $ad = Import-JsonFile (Join-Path $ManifestDir 'ad-manifest.json')
-    foreach ($u in ($ad.users | Where-Object status -eq 'terminated')) { $termSids[$u.sid] = $true }
+Write-Log "Check 6: distributions vs config"
+
+# Category totals (exact, from the streaming pass)
+$catTotals = @{}
+foreach ($cat in $cfg.fileTypeMix.PSObject.Properties) {
+    if ($cat.Name.StartsWith('$')) { continue }
+    $catTotals[$cat.Name] = 0
 }
-$termOwners = 0
-foreach ($line in $fileLines) {
-    $r = $line | ConvertFrom-Json
-    if ($ageCounts.ContainsKey($r.ageBucket)) { $ageCounts[$r.ageBucket]++ }
-    if (-not $extCounts.ContainsKey($r.ext)) { $extCounts[$r.ext] = 0 }
-    $extCounts[$r.ext]++
-    if ($r.dupGroup) {
-        if ($r.dupGroup.StartsWith('d')) {
-            if (-not $dupGroups.ContainsKey($r.dupGroup)) { $dupGroups[$r.dupGroup] = 0 }
-            $dupGroups[$r.dupGroup]++
-        } elseif ($r.dupGroup.StartsWith('v')) {
-            if (-not $driftGroups.ContainsKey($r.dupGroup)) { $driftGroups[$r.dupGroup] = 0 }
-            $driftGroups[$r.dupGroup]++
-        }
+$unclassified = 0
+foreach ($ext in $extCounts.Keys) {
+    if ($extCategory.ContainsKey($ext)) {
+        $c = $extCategory[$ext]
+        if ($catTotals.ContainsKey($c)) { $catTotals[$c] += $extCounts[$ext] } else { $unclassified += $extCounts[$ext] }
+    } else {
+        $unclassified += $extCounts[$ext]
     }
-    if ($r.ownerSid -and $termSids.ContainsKey($r.ownerSid)) { $termOwners++ }
 }
+$catPct = [ordered]@{}
+foreach ($name in ($cfg.fileTypeMix.PSObject.Properties | Where-Object { -not $_.Name.StartsWith('$') } | ForEach-Object { $_.Name })) {
+    $target = [double]$cfg.fileTypeMix.$name
+    $actual = if ($totalOnDisk -gt 0) { [Math]::Round(100.0 * $catTotals[$name] / $totalOnDisk, 2) } else { 0 }
+    $catPct[$name] = [ordered]@{ target = $target; actual = $actual; count = $catTotals[$name] }
+}
+
+# Age histogram (statistical, from the sample)
+$ageBuckets = @('last30days','days30to365','years1to2','years2to5','years5to10','years10to15')
 $agePct = [ordered]@{}
 foreach ($b in $ageBuckets) {
-    $agePct[$b] = @{
+    $agePct[$b] = [ordered]@{
         target = [double]$cfg.ageDistribution.$b
-        actual = [Math]::Round(100.0 * $ageCounts[$b] / [Math]::Max(1, $totalRecords), 2)
+        actual = if ($sampleCount -gt 0) { [Math]::Round(100.0 * $ageCountsSample[$b] / $sampleCount, 2) } else { 0 }
     }
 }
+
+# Estimated terminated-owner count (from sample, projected)
+$termOwnerEst = if ($sampleCount -gt 0) { [int][Math]::Round(($termOwnerSample / $sampleCount) * $totalOnDisk) } else { 0 }
 
 # ---------------------------------------------------------------------------
 # Emit report
 # ---------------------------------------------------------------------------
-$pass = ($folderMissing -eq 0 -and $fileMissing -eq 0 -and $sizeMismatch -eq 0 -and $headerMismatch -eq 0 -and $tsMismatch -eq 0 -and $ownerMismatch -eq 0 -and $noAcl -eq 0)
+$pass = ($folderMissing -eq 0 -and $missing -eq 0 -and $headerMismatch -eq 0 `
+    -and $timestampInconsistent -eq 0 -and $ownerNull -eq 0 -and $noAcl -eq 0)
 
 $report = [ordered]@{
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
-    rootPath       = $folderManifest.meta.rootPath
+    rootPath       = $rootPath
     folderRecords  = $folders.Count
-    fileRecords    = $totalRecords
+    filesOnDisk    = $totalOnDisk
+    scanElapsedSec = [Math]::Round($swScan.Elapsed.TotalSeconds, 2)
     checks = [ordered]@{
-        folderExistence = [ordered]@{ missing = $folderMissing; totalChecked = $folders.Count - 1 }
+        folderExistence = [ordered]@{ missing = $folderMissing; totalChecked = $folderExpected }
         fileSample      = [ordered]@{
-            size          = $n
-            missing       = $fileMissing
-            sizeMismatch  = $sizeMismatch
-            headerMismatch= $headerMismatch
-            headersChecked= $checkedHeaders
-            timestampMismatch = $tsMismatch
-            ownerMismatch = $ownerMismatch
+            size                   = $sampleCount
+            missing                = $missing
+            magicMismatch          = $headerMismatch
+            magicHeadersChecked    = $headersChecked
+            timestampInconsistent  = $timestampInconsistent
+            ownerNull              = $ownerNull
         }
         aclSample       = [ordered]@{
             size          = $aclSample
@@ -264,15 +324,14 @@ $report = [ordered]@{
             withAuthUsers = $withAuthUsers
         }
         distribution    = [ordered]@{
-            ageBucketsPct      = $agePct
-            duplicateGroups    = $dupGroups.Count
-            duplicateRecords   = ($dupGroups.Values | Measure-Object -Sum).Sum
-            driftGroups        = $driftGroups.Count
-            driftRecords       = ($driftGroups.Values | Measure-Object -Sum).Sum
-            terminatedOwners   = $termOwners
+            fileTypePct               = $catPct
+            unclassifiedFiles         = $unclassified
+            ageBucketsPctSample       = $agePct
+            terminatedOwnerEstimate   = $termOwnerEst
+            terminatedOwnerInSample   = $termOwnerSample
         }
     }
-    pass = $pass
+    pass    = $pass
     logPath = $LogPath
 }
 $report | ConvertTo-Json -Depth 6 | Set-Content -Path $VerifyOut -Encoding utf8

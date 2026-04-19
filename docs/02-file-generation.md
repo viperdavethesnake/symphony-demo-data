@@ -1,5 +1,7 @@
 # 02 — File Generation
 
+> **SUPERSEDED** by [`docs/06-streaming-rewrite.md`](06-streaming-rewrite.md) as of 2026-04-18. Kept for historical context only — the planning-pipeline design described below was scrapped (D-029). The live file generator is the single-script streaming `Build-AcmeShare.ps1`.
+
 This phase turns the AD manifest + JSON config into 10M files under `S:\Share`. It's the heaviest phase by a wide margin. Getting this right is most of the project.
 
 ## Philosophy: plan everything, then execute dumbly in parallel

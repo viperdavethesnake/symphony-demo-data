@@ -2,59 +2,43 @@
 
 How the pieces fit together at runtime. What scripts exist, what they produce, what depends on what.
 
+> **2026-04-18:** The multi-phase planning pipeline was replaced by a single streaming script (`Build-AcmeShare.ps1`). See D-029 and `docs/06-streaming-rewrite.md`. Inventory and graph below reflect the live design.
+
 ## Script inventory
 
-All PowerShell 7+. All live in `scripts/`. All take `-ConfigPath` pointing to `config/main-config.json`.
+All PowerShell 7+. All live in `scripts/`. All take `-ConfigPath` pointing to `config/main-config.json` (or `.dev.json`).
 
 | Script | Phase | Depends on | Produces |
 |---|---|---|---|
-| `Build-AcmeAD.ps1` | AD setup | config | `manifests/ad-manifest.json` (Populate) or archived manifest (Remove) |
-| `Plan-AcmeData.ps1` | 2a + 2b | config, ad-manifest, filetypes, folder-templates, token-pool | `manifests/folder-manifest.json`, `manifests/file-manifest.jsonl` |
-| `Build-AcmeFolders.ps1` | 2c | folder-manifest | folders on disk under `S:\Share` |
-| `Build-AcmeFiles.ps1` | 2d | file-manifest | files on disk (empty-at-planned-size) |
-| `Set-AcmeTimestamps.ps1` | 2e | file-manifest | files with correct btime/mtime/atime |
-| `Set-AcmeOwners.ps1` | 2f | file-manifest, ad-manifest | files with owner SIDs |
-| `Set-AcmeACLs.ps1` | 2g | folder-manifest, ad-manifest | folders (and ~0.5% files) with ACLs |
-| `Remove-AcmeOrphans.ps1` | 2h | ad-manifest | terminated users deleted from AD, leaving orphaned SIDs on disk |
-| `Test-AcmeData.ps1` | Verification | all manifests | `manifests/logs/verification.json` |
+| `Build-AcmeAD.ps1` | `ad` | config | `manifests/ad-manifest.json` (Populate) or archived manifest (Remove) |
+| `Build-AcmeShare.ps1` | `share` | config, ad-manifest, filetypes, folder-templates, token-pool | `manifests/folder-manifest.json`, files on disk under `S:\Share` (sparse + header + size + timestamps + owner — one streaming pass; version drift inlined; final single-threaded dup pass) |
+| `Set-AcmeACLs.ps1` | `2g` | folder-manifest, ad-manifest | folders (and ~0.5% files) with ACLs; `manifests/logs/acl-summary.json` |
+| `Remove-AcmeOrphans.ps1` | `2h` | ad-manifest | terminated users deleted from AD, leaving orphaned SIDs on disk |
+| `Test-AcmeData.ps1` | `verify` | folder-manifest + disk | `manifests/logs/verification.json` (file sample is disk-driven — there is no file-manifest) |
 | `Build-AcmeData.ps1` | **Master** | all of the above | runs all phases in order |
+| `Initialize-AcmeDisk.ps1` | VM bootstrap | — | formats `S:` with the locked parameter matrix, creates `S:\Share` |
+| `Disable-AcmeDefender.ps1` | VM bootstrap | — | fully disables Defender on the lab VM (D-047) |
 
 ## Master orchestration script
 
 `Build-AcmeData.ps1` is the entry point humans call. It:
-1. Reads `config/main-config.json`
-2. Validates all sub-configs are present (`filetypes.json`, `folder-templates.json`, `token-pool.json`)
-3. Checks `manifests/ad-manifest.json` exists (runs `Build-AcmeAD.ps1` if missing)
-4. Runs each phase in order
-5. Times each phase, writes to `manifests/logs/run-summary.json`
-6. Stops on any phase failure (honors `$ErrorActionPreference = 'Stop'`)
-7. Supports `-SkipPhase` parameter for resuming partial runs (`-SkipPhase @('2a','2b','2c','2d')` to skip to timestamps)
-8. Supports `-DryRun` for the planning phases only (produces manifests without touching disk)
-
-Rough skeleton (not a spec, just shape — Claude Code designs the actual flow):
+1. Reads the passed config
+2. Checks `manifests/ad-manifest.json` exists (runs `Build-AcmeAD.ps1` if missing)
+3. Runs each phase in order: `ad` → `share` → `2g` → `2h` (opt-in) → `verify`
+4. Times each phase, writes to `manifests/logs/run-summary.json`
+5. Stops on any phase failure (`$ErrorActionPreference = 'Stop'`)
+6. Supports `-SkipPhase` for partial re-runs (e.g. `-SkipPhase @('ad','share')` to rerun only the ACL/verify tail)
+7. Supports `-RunOrphans` to opt in to deleting terminated AD users (destructive)
+8. Supports `-DryRun` to run only the `ad` phase
 
 ```powershell
-#Requires -Version 7.0
-[CmdletBinding()]
-param(
-    [Parameter(Mandatory)][string]$ConfigPath,
-    [string[]]$SkipPhase = @(),
-    [switch]$DryRun
-)
-$ErrorActionPreference = 'Stop'
-
 $phases = @(
-    @{ id='ad';   script='Build-AcmeAD.ps1';       skipIf={ Test-Path manifests/ad-manifest.json } }
-    @{ id='plan'; script='Plan-AcmeData.ps1' }
-    @{ id='2c';   script='Build-AcmeFolders.ps1' }
-    @{ id='2d';   script='Build-AcmeFiles.ps1' }
-    @{ id='2e';   script='Set-AcmeTimestamps.ps1' }
-    @{ id='2f';   script='Set-AcmeOwners.ps1' }
-    @{ id='2g';   script='Set-AcmeACLs.ps1' }
-    @{ id='2h';   script='Remove-AcmeOrphans.ps1' }
+    @{ id='ad';     script='Build-AcmeAD.ps1';       skipIf={ Test-Path manifests/ad-manifest.json } }
+    @{ id='share';  script='Build-AcmeShare.ps1' }
+    @{ id='2g';     script='Set-AcmeACLs.ps1' }
+    @{ id='2h';     script='Remove-AcmeOrphans.ps1'; optIn=$true }
     @{ id='verify'; script='Test-AcmeData.ps1' }
 )
-# iterate, log, write run-summary.json
 ```
 
 ## Dependency graph
@@ -63,38 +47,29 @@ $phases = @(
 config/main-config.json
         │
         ├─► Build-AcmeAD.ps1 ──► ad-manifest.json
-        │                             │
-        │   filetypes.json            │
-        │   folder-templates.json     │
-        │   token-pool.json           │
-        │         │                   │
-        │         ▼                   ▼
-        └──► Plan-AcmeData.ps1 ──► folder-manifest.json
-                                     file-manifest.jsonl
-                                       │
-                                       ▼
-                               Build-AcmeFolders.ps1
-                                       │
-                                       ▼
-                               Build-AcmeFiles.ps1  (parallel)
-                                       │
-                                       ▼
-                            Set-AcmeTimestamps.ps1  (parallel)
-                                       │
-                                       ▼
-                              Set-AcmeOwners.ps1    (parallel)
-                                       │
-                                       ▼
-                               Set-AcmeACLs.ps1    (parallel)
-                                       │
-                                       ▼
-                            Remove-AcmeOrphans.ps1
-                                       │
-                                       ▼
-                               Test-AcmeData.ps1
-                                       │
-                                       ▼
-                           verification.json + summary
+        │                              │
+        │   filetypes.json             │
+        │   folder-templates.json      │
+        │   token-pool.json            │
+        │         │                    │
+        │         ▼                    ▼
+        └──► Build-AcmeShare.ps1 ──► folder-manifest.json
+                │  (Phase A: expand + allocate + mkdir; Phase B: parallel
+                │   runspaces write sparse+header+size+timestamps+owner inline;
+                │   version drift inlined; dup pass single-threaded from disk)
+                │
+                ▼  files on S:\Share
+                │
+        Set-AcmeACLs.ps1 (parallel; folder-manifest-driven)
+                │
+                ▼
+        Remove-AcmeOrphans.ps1 (opt-in — destructive to AD)
+                │
+                ▼
+        Test-AcmeData.ps1 (disk-driven sample + folder-manifest ACL check)
+                │
+                ▼
+        verification.json + run-summary.json
 ```
 
 ## Logs and artifacts
@@ -103,63 +78,70 @@ All generated artifacts land in `manifests/` (gitignored). Structure:
 
 ```
 manifests/
-├── ad-manifest.json              ← 400 users, 40 groups, SIDs
-├── folder-manifest.json          ← 50k–100k folders with metadata
-├── file-manifest.jsonl           ← 10M file records (3–5 GB)
+├── ad-manifest.json                     ← 400+ users, 40 groups, SIDs
+├── folder-manifest.json                 ← 7k–50k folders with metadata
 └── logs/
-    ├── ad-build.log
-    ├── plan.log
-    ├── folders.log
-    ├── files-runspace-{id}.log   ← one per parallel worker
-    ├── timestamps-runspace-{id}.log
-    ├── owners-runspace-{id}.log
-    ├── acls-runspace-{id}.log
-    ├── orphans.log
-    ├── failures.jsonl            ← any per-file errors across any phase
-    ├── acl-summary.json          ← ACL mess counts vs targets
-    ├── verification.json         ← final truth report
-    └── run-summary.json          ← per-phase timings, top-level result
+    ├── ad-populate-<stamp>.log
+    ├── share-<stamp>.log                ← top-level share progress
+    ├── share-chunks-<stamp>/            ← per-runspace worker logs
+    │   ├── chunk-00001.log
+    │   └── chunk-00001-failures.jsonl   ← per-chunk failure shards
+    ├── share-summary.json
+    ├── acls-<stamp>.log
+    ├── acl-summary.json                 ← ACL mess counts vs targets
+    ├── orphans-<stamp>.log (if run)
+    ├── ad-teardown-summary.json (if run)
+    ├── failures.jsonl                   ← merged per-file errors
+    ├── verify-<stamp>.log
+    ├── verification.json                ← final truth report
+    ├── run-<stamp>.log                  ← orchestrator log
+    └── run-summary.json                 ← per-phase timings, top-level result
 ```
 
 ## Re-runs and idempotency
 
 | Phase | Idempotent? | Re-run behavior |
 |---|---|---|
-| AD build | Yes | Check-before-create; safe to re-run |
-| Planning | Yes | Deterministic given seed; regenerates manifests |
-| Folders | Yes | `New-Item -Force` |
-| Files | No | Assumes empty target. Wipe `S:\Share` before re-running |
-| Timestamps | Yes | Just overwrites |
-| Owners | Yes | Just overwrites |
-| ACLs | Yes | Replaces ACL, not merges |
-| Orphan pass | Partially | If terminated users are already deleted, skip silently |
+| `ad` (Build-AcmeAD) | Yes | Check-before-create; safe to re-run |
+| `share` (Build-AcmeShare) | No | Assumes empty target. Wipe `S:\Share` before re-running |
+| `2g` (ACLs) | Yes | Replaces folder ACLs, not merges |
+| `2h` (Orphans) | Partially | If terminated users already deleted, skip silently |
+| `verify` | Yes | Read-only |
 
 Full reset (nuke and pave):
 ```powershell
-Remove-Item -Path 'S:\Share\*' -Recurse -Force
-Remove-Item -Path '.\manifests' -Recurse -Force
-# Remove AD users/groups is more work — revert to snapshot 00-clean-dc instead
+Get-ChildItem -Path 'S:\Share' -Force | Remove-Item -Recurse -Force
+Remove-Item -Path '.\manifests\folder-manifest.json' -Force
+# Keep ad-manifest.json; AD state is stable.
+# Re-run: pwsh -File .\scripts\Build-AcmeData.ps1 -ConfigPath .\config\main-config.json -SkipPhase @('ad')
 ```
 
 ## Resume strategy
 
-If something fails mid-run:
-1. Inspect `manifests/logs/failures.jsonl` and the phase's own log
-2. Fix the root cause
-3. Re-run `Build-AcmeData.ps1 -SkipPhase @('ad','plan','2c','2d')` to skip completed phases
-4. The file-manifest is the source of truth — timestamps/owners/ACLs passes just re-apply from it
+No intra-`share` resume — the streaming generator is all-or-nothing per run. If it fails:
+1. Inspect `manifests/logs/share-<stamp>.log` and the per-chunk `chunk-NNNNN.log` shards
+2. Check `manifests/logs/failures.jsonl` for per-file errors
+3. Wipe `S:\Share` and re-run
+
+For partial re-runs past `share` (ACLs only, verify only, etc.):
+```powershell
+pwsh -File .\scripts\Build-AcmeData.ps1 -ConfigPath .\config\main-config.json -SkipPhase @('ad','share')
+```
 
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success, verification clean |
-| 1 | A phase script threw |
-| 2 | Verification pass found > 0.1% drift from targets |
-| 3 | Pre-flight check failed (missing config, missing ad-manifest, disk too small, etc.) |
+| 1 | A phase script threw, or the share phase exceeded the 0.1% failure threshold |
+| 2 | Verification found at least one non-zero mismatch (folder missing, magic byte mismatch, timestamp inconsistent, owner null, folder with no ACL) |
 
-## Time-to-rebuild from snapshot 01
+## Expected runtimes
 
-If you revert to `01-ad-populated` and want a regen with tweaked config:
-- Wipe `S:\Share`, wipe `manifests/`, re-run `Build-AcmeData.ps1 -SkipPhase ad`
-- Expected: 60–95 min unattended
+| Phase | Dev (2000 files) | Prod (10M files) |
+|---|---|---|
+| `ad` | 30–60 s (one-shot; skipped on re-runs) | same |
+| `share` | < 30 s | under 30 min (target from D-029/docs/06) |
+| `2g` | < 10 s | 10–20 min |
+| `2h` | < 5 s (if run) | < 10 s |
+| `verify` | < 5 s | 2–10 min (disk enumeration dominates) |

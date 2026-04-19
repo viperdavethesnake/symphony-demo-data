@@ -68,11 +68,13 @@ foreach ($u in $terminated) {
             Write-Log "skip (already gone): $($u.samAccountName)" 'INFO'
             continue
         }
-        if ($PSCmdlet.ShouldProcess($u.samAccountName, 'Remove-ADUser')) {
-            Remove-ADUser -Identity $u.samAccountName -Confirm:$false -ErrorAction Stop
-            $deleted++
-            Write-Log "deleted: $($u.samAccountName) (sid $($u.sid))" 'OK'
+        if ($WhatIfPreference) {
+            Write-Log "what-if: Remove-ADUser -Identity $($u.samAccountName)" 'INFO'
+            continue
         }
+        Remove-ADUser -Identity $u.samAccountName -Confirm:$false -ErrorAction Stop
+        $deleted++
+        Write-Log "deleted: $($u.samAccountName) (sid $($u.sid))" 'OK'
     } catch {
         $failed++
         Write-Log "failed: $($u.samAccountName) :: $($_.Exception.Message)" 'ERROR'

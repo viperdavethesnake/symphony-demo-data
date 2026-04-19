@@ -67,14 +67,10 @@ Everything must land one of these three stories. Don't add features that don't.
 
 1. **VM provisioning** — install Windows features, format S:, enable sparse. See `docs/04-vm-provisioning.md`
 2. **AD setup** — `Build-AcmeAD.ps1` creates OUs, users, groups. Emits `manifests/ad-manifest.json`. See `docs/01-ad-design.md`
-3. **Plan** — `Plan-AcmeData.ps1` emits `folder-manifest.json` and `file-manifest.jsonl`. See `docs/02-file-generation.md`
-4. **Folder creation** — walk folder-manifest, create directories
-5. **File creation** — parallel workers: magic-byte header + sparse body
-6. **Timestamp application** — set btime/mtime/atime consistently
-7. **Owner application** — apply ownerSid per file
-8. **ACL application** — folder-level ACLs + mess patterns. See `docs/03-acl-design.md`
-9. **Orphan pass** — delete the ~12 terminated users so their SIDs become unresolvable
-10. **Verification** — `Test-AcmeData.ps1` produces `verification.json`
+3. **Share build** — `Build-AcmeShare.ps1` (one streaming script — replaces the old plan/folders/files/timestamps/owners pipeline; see `docs/06-streaming-rewrite.md` and D-029). Phase A: expand folder templates, allocate file counts, emit `folder-manifest.json`, mkdir on disk. Phase B: parallel runspaces — each folder samples attributes per file and writes sparse+header+size+timestamps+owner inline. Version drift inlined. Final single-threaded dup pass copies ~8% of files from disk to other folders.
+4. **ACL application** — `Set-AcmeACLs.ps1` — folder-level ACLs + mess patterns. Reads `folder-manifest.json`. See `docs/03-acl-design.md`
+5. **Orphan pass** — `Remove-AcmeOrphans.ps1` (opt-in with `-RunOrphans`) deletes the ~12 terminated users so their SIDs become unresolvable
+6. **Verification** — `Test-AcmeData.ps1` samples disk (no file manifest), validates magic/timestamps/owner, and produces `verification.json`
 
 Orchestration details and the master script shape in `docs/05-orchestration.md`.
 
