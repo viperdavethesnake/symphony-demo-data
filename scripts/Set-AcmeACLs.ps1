@@ -59,9 +59,10 @@ function Import-JsonFile {
 }
 
 Write-Log "Set-AcmeACLs starting"
-$cfg        = Import-JsonFile $ConfigPath
-$folders    = (Import-JsonFile $FolderManifest).folders
-$adManifest = Import-JsonFile $AdManifest
+$cfg            = Import-JsonFile $ConfigPath
+$folderManifest = Import-JsonFile $FolderManifest
+$folders        = $folderManifest.folders
+$adManifest     = Import-JsonFile $AdManifest
 
 $throttle   = [int]$cfg.scale.parallelThreads
 $seed       = [int]$cfg.meta.seed
@@ -204,8 +205,9 @@ function New-CleanTemplate {
     switch ($Category) {
         'dept-root' {
             $dept = ($F.relPath -split '/')[1]
-            $rwSid  = Get-GroupSid "GRP_${dept}BuildsRW"
-            if (-not $rwSid) { $rwSid = Get-GroupSid "GRP_${dept}ReadWrite" }
+            # Probe fancier group names silently — most depts only have GRP_$dept.
+            $rwSid  = Get-GroupSid "GRP_${dept}BuildsRW"  -Silent
+            if (-not $rwSid) { $rwSid = Get-GroupSid "GRP_${dept}ReadWrite" -Silent }
             if (-not $rwSid) { $rwSid = Get-GroupSid "GRP_$dept" }
             $deptSid = Get-GroupSid "GRP_$dept"
             if ($rwSid)  { $aces.Add((New-Ace -Sid $rwSid  -Rights Modify)) }
@@ -448,7 +450,9 @@ $conflictIdxs = Get-RandomSample -Rng $rngMess -Items @(0..($plans.Count - 1)) -
 foreach ($i in $conflictIdxs) {
     $dept = ($plans[$i].RelPath -split '/')
     $deptName = if ($dept.Length -ge 2) { $dept[1] } else { 'Operations' }
-    $sid = Get-GroupSid "GRP_$deptName"
+    # Silent probe: for Shared/* folders $deptName is "Projects"/"Scratch"/etc which
+    # are valid share buckets but not AD groups. Fall back to GRP_AllStaff quietly.
+    $sid = Get-GroupSid "GRP_$deptName" -Silent
     if (-not $sid) { $sid = Get-GroupSid 'GRP_AllStaff' }
     if ($sid) {
         $plans[$i].Aces.Add((New-Ace -Sid $sid -Rights Write -Type Deny -Inherit All))
@@ -460,25 +464,44 @@ foreach ($i in $conflictIdxs) {
 Write-Log ("Mess plan: " + ($messCounters.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ' ')
 
 # ---------------------------------------------------------------------------
-# File-level ACE plan (~0.5% of files)
+# File-level ACE plan (~0.5% of files) — disk-driven now that file-manifest.jsonl
+# is gone (see docs/06-streaming-rewrite.md / D-029).
+# Reservoir-samples paths from Directory.EnumerateFiles, then assigns a random
+# active user + Modify ACE to each.
 # ---------------------------------------------------------------------------
 $filePlans = [System.Collections.Generic.List[object]]::new()
-if (Test-Path $FileManifest) {
-    $fileLines = [System.IO.File]::ReadAllLines($FileManifest)
-    if ($fileLines.Length -gt 0) {
-        $fileAceN = [int]([Math]::Ceiling($fileLines.Length * 0.005))
-        $fileIdxs = Get-RandomSample -Rng $rngFile -Items @(0..($fileLines.Length - 1)) -N $fileAceN
-        foreach ($idx in $fileIdxs) {
-            $rec = $fileLines[$idx] | ConvertFrom-Json
+$rootPath = $folderManifest.meta.rootPath
+if (Test-Path $rootPath) {
+    # Upper-bound the sample size: base files + drift (~10%) + dup (~8%), so ~1.2x totalFilesPlanned.
+    $estTotal = [int]([Math]::Ceiling([double]$folderManifest.meta.totalFilesPlanned * 1.2))
+    $fileAceN = [int]([Math]::Ceiling($estTotal * 0.005))
+    if ($fileAceN -gt 0) {
+        Write-Log "File-level ACE target ~$fileAceN (reservoir sample over disk)"
+        $reservoir = New-Object 'string[]' $fileAceN
+        $seen = 0
+        $enumOpts = New-Object System.IO.EnumerationOptions
+        $enumOpts.RecurseSubdirectories = $true
+        $enumOpts.IgnoreInaccessible    = $true
+        foreach ($p in [System.IO.Directory]::EnumerateFiles($rootPath, '*', $enumOpts)) {
+            if ($seen -lt $fileAceN) {
+                $reservoir[$seen] = $p
+            } else {
+                $j = $rngFile.Next(0, $seen + 1)
+                if ($j -lt $fileAceN) { $reservoir[$j] = $p }
+            }
+            $seen++
+        }
+        $actualN = [Math]::Min($seen, $fileAceN)
+        for ($i = 0; $i -lt $actualN; $i++) {
             $u = Get-RandomPick -Rng $rngFile -Items $activeUsers
             $filePlans.Add([pscustomobject]@{
-                Path   = $rec.path
+                Path   = $reservoir[$i]
                 Sid    = $u.sid
                 Rights = 'Modify'
             })
             $messCounters.fileAce++
         }
-        Write-Log "Planned $($filePlans.Count) file-level ACEs"
+        Write-Log "Planned $($filePlans.Count) file-level ACEs (scanned $seen files)"
     }
 }
 

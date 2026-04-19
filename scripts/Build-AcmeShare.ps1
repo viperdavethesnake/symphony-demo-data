@@ -347,7 +347,10 @@ foreach ($sharedName in $cfg.folders.commonShares) {
         $topLevel      = ($entry -split '/')[0]
         $isArchiveTree = ($sharedName -eq 'Archive') -or ($topLevel -match '^Archive')
         $ageBias       = if ($isArchiveTree) { 'very-old' } else { $tmpl.ageBias }
-        $themeTags = @($sharedName, $topLevel)
+        # Don't add $topLevel to themeTags if it's an unexpanded template token
+        # (e.g. "{codewordList:40}" in Shared/Projects). Literal topLevels like
+        # "Archive" or "BrandAssets" are kept.
+        $themeTags = if ($topLevel -match '^\{') { @($sharedName) } else { @($sharedName, $topLevel) }
         if ($isArchiveTree) { $themeTags += 'archive' }
         $expanded = Expand-StructureEntry -Entry $entry -YearRangeStart $yrStart -YearRangeEnd $yrEnd -Rng $rngTree
         foreach ($relSub in $expanded) {
@@ -752,7 +755,15 @@ using System.Runtime.InteropServices;
 namespace Acme {
     public static class NativeOwner {
         private const uint SE_FILE_OBJECT = 1;
-        private const uint OWNER_SECURITY_INFORMATION = 0x00000001;
+        private const uint OWNER_SECURITY_INFORMATION       = 0x00000001;
+        private const uint DACL_SECURITY_INFORMATION        = 0x00000004;
+        private const uint UNPROTECTED_DACL_SECURITY_INFO   = 0x20000000;
+
+        [DllImport("advapi32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+        private static extern uint GetNamedSecurityInfo(
+            string pObjectName, uint objectType, uint securityInfo,
+            IntPtr ppsidOwner, IntPtr ppsidGroup,
+            out IntPtr ppDacl, IntPtr ppSacl, out IntPtr ppSecurityDescriptor);
         [DllImport("advapi32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
         private static extern uint SetNamedSecurityInfo(
             string pObjectName, uint objectType, uint securityInfo,
@@ -761,17 +772,41 @@ namespace Acme {
         private static extern bool ConvertStringSidToSid(string stringSid, out IntPtr psid);
         [DllImport("kernel32.dll")]
         private static extern IntPtr LocalFree(IntPtr hMem);
+
+        // Windows quirk: SetNamedSecurityInfo with just OWNER_SECURITY_INFORMATION will
+        //   (a) convert every inherited ACE on the file to explicit, and
+        //   (b) set the PROTECTED bit on the DACL — so the file stops inheriting from
+        //       its parent folder's ACL.
+        // To change the owner without that side effect we have to pass the DACL explicitly:
+        // read the current DACL via GetNamedSecurityInfo, then SetNamedSecurityInfo with
+        //   OWNER | DACL | UNPROTECTED and the retrieved pDacl.
+        // Same semantics as `icacls /inheritance:e` combined with ownership change.
+        // Cost: 2 kernel calls per file vs 1 in the naive approach.
         public static void SetOwner(string path, string sid) {
             IntPtr psid;
             if (!ConvertStringSidToSid(sid, out psid))
                 throw new System.ComponentModel.Win32Exception(
                     Marshal.GetLastWin32Error(), "ConvertStringSidToSid failed for " + sid);
+            IntPtr pDacl;
+            IntPtr pSD;
             try {
-                uint rc = SetNamedSecurityInfo(path, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
-                    psid, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                uint rc = GetNamedSecurityInfo(path, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+                    IntPtr.Zero, IntPtr.Zero, out pDacl, IntPtr.Zero, out pSD);
                 if (rc != 0)
                     throw new System.ComponentModel.Win32Exception((int)rc,
-                        "SetNamedSecurityInfo failed rc=" + rc + " for " + path);
+                        "GetNamedSecurityInfo failed rc=" + rc + " for " + path);
+                try {
+                    uint flags = OWNER_SECURITY_INFORMATION
+                               | DACL_SECURITY_INFORMATION
+                               | UNPROTECTED_DACL_SECURITY_INFO;
+                    rc = SetNamedSecurityInfo(path, SE_FILE_OBJECT, flags,
+                        psid, IntPtr.Zero, pDacl, IntPtr.Zero);
+                    if (rc != 0)
+                        throw new System.ComponentModel.Win32Exception((int)rc,
+                            "SetNamedSecurityInfo failed rc=" + rc + " for " + path);
+                } finally {
+                    if (pSD != IntPtr.Zero) LocalFree(pSD);
+                }
             } finally {
                 LocalFree(psid);
             }
